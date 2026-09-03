@@ -1,0 +1,41 @@
+[project]
+name = "tebaki-engine"
+version = "0.1.0"
+description = "Tebaki — the city's guardian: Strands-powered civic complaint engine"
+readme = "../README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "strands-agents>=0.1",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "pyyaml>=6.0",
+    "h3>=4.0",
+    "scikit-learn>=1.5",
+    "httpx>=0.27",
+    "boto3>=1.35",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.7",
+    "mypy>=1.11",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
