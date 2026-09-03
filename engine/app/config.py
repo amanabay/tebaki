@@ -3,6 +3,8 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
 
 class Settings(BaseSettings):
     """Engine configuration. AWS-side config; local dev defaults to sandbox pack."""
@@ -13,7 +15,7 @@ class Settings(BaseSettings):
 
     # City pack selection
     city_pack: str = Field(default="sandbox", description="Name of city pack under cities/")
-    cities_dir: Path = Field(default=Path("../../cities"))
+    cities_dir: Path = Field(default=_REPO_ROOT / "cities")
 
     # AWS / Bedrock
     aws_region: str = "us-east-1"
