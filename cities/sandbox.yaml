@@ -1,0 +1,42 @@
+city:
+  name: Sandbox City
+  local_name: Sandbox
+  languages: [en]
+  timezone: Africa/Addis_Ababa
+  locale: en-US
+boundary:
+  geojson: geojson/sandbox.geojson
+  note: Fixture polygon for offline dev/CI/evals.
+admin:
+  - level: district
+    source: geojson
+channels:
+  email:
+    - target: District Sanitation Office
+      address: sanitation@sandbox-portal.invalid
+      lang: en
+  browser:
+    url: http://localhost:9100/complaints/new
+    form_map:
+      category: "#category"
+      description: "#description"
+      location: "#location"
+      photo: "input[name=photo]"
+      submit: "button[type=submit]"
+  escalation:
+    - level: district
+      target: District Grievance Office
+      email: district-grievance@sandbox-portal.invalid
+      after_days: 2
+    - level: city
+      target: Sandbox City Council
+      after_days: 5
+regulations:
+  - cite: Sandbox Municipal Code 12 (Waste and Sanitation)
+    doc: null
+sla:
+  acknowledge_days: 2
+  resolve_days: 7
+pitch:
+  number: 3 in 5 sandbox reports historically unacknowledged
+  source: sandbox fixture

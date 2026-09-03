@@ -1,0 +1,39 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "admin_level": "community_area",
+    "name": "Chicago (placeholder bbox \u2014 replace with community-area extract)"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -87.94,
+       41.64
+      ],
+      [
+       -87.52,
+       41.64
+      ],
+      [
+       -87.52,
+       42.02
+      ],
+      [
+       -87.94,
+       42.02
+      ],
+      [
+       -87.94,
+       41.64
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

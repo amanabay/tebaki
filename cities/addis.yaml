@@ -1,0 +1,46 @@
+city:
+  name: Addis Ababa
+  local_name: አዲስ አበባ
+  languages: [am, en]
+  timezone: Africa/Addis_Ababa
+  locale: am-ET
+boundary:
+  geojson: geojson/addis.geojson
+  note: >-
+    TODO-RESEARCH: placeholder bbox polygon. Replace with OSM sub-city
+    boundary extract (docs/addis-research.md, task 2).
+admin:
+  - level: sub-city
+    source: geojson
+channels:
+  email:
+    # TODO-RESEARCH: verify real sub-city office addresses (docs/addis-research.md, task 3).
+    - target: Sub-city Sanitation, Beautification and Parks Development Office
+      address: research-pending@placeholder.invalid
+      lang: am
+  browser: null
+  escalation:
+    # TODO-RESEARCH: verify contacts and after_days for each rung (docs/addis-research.md, task 3).
+    - level: sub-city
+      target: Sub-city grievance office
+      email: null
+      after_days: 7
+    - level: city
+      target: Addis Ababa Cleansing Management Agency
+      email: null
+      after_days: 14
+    - level: federal
+      target: Federal Grievance Handling (Office of the Prime Minister)
+      email: null
+      after_days: 30
+regulations:
+  - cite: Solid Waste Management Proclamation No. 513/2007
+    # TODO-RESEARCH: add the proclamation PDF (docs/addis-research.md, task 4).
+    doc: docs/proc513.pdf
+sla:
+  acknowledge_days: 7
+  resolve_days: 30
+pitch:
+  # TODO-RESEARCH: citable stat + source (docs/addis-research.md, task 1).
+  number: TODO-RESEARCH
+  source: TODO-RESEARCH

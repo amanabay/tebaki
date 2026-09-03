@@ -1,0 +1,39 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "admin_level": "sub-city",
+    "name": "Addis Ababa (placeholder bbox \u2014 replace with OSM sub-city extract)"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       38.65,
+       8.95
+      ],
+      [
+       39.05,
+       8.95
+      ],
+      [
+       39.05,
+       9.1
+      ],
+      [
+       38.65,
+       9.1
+      ],
+      [
+       38.65,
+       8.95
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

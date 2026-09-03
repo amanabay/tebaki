@@ -1,0 +1,37 @@
+city:
+  name: Chicago
+  local_name: Chicago
+  languages: [en]
+  timezone: America/Chicago
+  locale: en-US
+boundary:
+  geojson: geojson/chicago.geojson
+  note: Approximate bbox polygon. Replace with community-area extract for ward-accurate mapping.
+admin:
+  - level: community_area
+    source: geojson
+channels:
+  email: []
+  browser: null
+  api:
+    type: open311
+    endpoint: https://311api.chicago.gov/open311/v2/requests.json
+    jurisdiction_id: chicago.gov
+    api_key_env: TEBAKI_CHICAGO_311_KEY
+    note: >-
+      GeoReport v2 write endpoint. POST requires an API key supplied via
+      the api_key_env variable. Verify endpoint and key against the
+      Open311 wiki servers list before the Day-5 live test.
+  escalation:
+    - level: city
+      target: Chicago 311 (city-level channel is already Open311)
+      after_days: 14
+regulations:
+  - cite: Chicago Municipal Code (chapter TBD)
+    doc: null
+sla:
+  acknowledge_days: 5
+  resolve_days: 30
+pitch:
+  number: Chicago handles millions of 311 service requests every year
+  source: Chicago Data Portal 311 service request counts

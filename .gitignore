@@ -35,3 +35,4 @@ build/
 
 # Stray research folder (outside repo)
 Gallery _ Built with Opus 4.7_ a Claude Code hackathon _ Cerebral Valley_files/
+engine/tests/fixtures/

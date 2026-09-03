@@ -1,0 +1,39 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "admin_level": "district",
+    "name": "Sandbox District"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       38.7,
+       8.96
+      ],
+      [
+       38.82,
+       8.96
+      ],
+      [
+       38.82,
+       9.06
+      ],
+      [
+       38.7,
+       9.06
+      ],
+      [
+       38.7,
+       8.96
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}
