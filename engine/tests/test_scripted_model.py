@@ -12,25 +12,18 @@ from app.agents.scripted_model import ScriptedModel
 
 
 @tool
-def submit_triage(
-    report_id: str,
-    category: str,
-    severity: int,
-    valid: bool,
-    reason: str,
-    language: str,
-) -> str:
-    """Submit the triage result for one resident report.
+def submit_triage(results: list[dict]) -> str:
+    """Submit triage results for a batch of resident reports.
 
     Args:
-        report_id: The report identifier being triaged.
-        category: One of waste|pothole|streetlight|drain|water.
-        severity: 1 (minor) to 5 (hazard).
-        valid: Whether the report is a valid, actionable issue.
-        reason: Short justification for the classification.
-        language: Detected language of the report note (ISO code).
+        results: One entry per report with report_id, category, severity,
+            valid, reason, language keys.
     """
-    return f"triaged {report_id}: {category}/{severity}/{'ok' if valid else 'invalid'}"
+    first = results[0]
+    return (
+        f"triaged {first['report_id']}: {first['category']}/{first['severity']}/"
+        f"{'ok' if first['valid'] else 'invalid'}"
+    )
 
 
 @pytest.fixture()

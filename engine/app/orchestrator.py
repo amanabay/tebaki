@@ -1,114 +1,47 @@
-"""Tebaki nightly orchestrator (Day-1 skeleton).
+"""Tebaki nightly orchestrator (Day-2: real Strands agents).
 
-A Strands agent drives the nightly cycle over the run store:
-triage -> cluster -> draft -> file (with human-in-the-loop interrupt
-on every filing) -> chase.
+Pipeline per nightly run:
+  1. TRIAGE   — Strands triage agent validates/classifies new reports
+                (scripted model offline, Bedrock live).
+  2. CLUSTER  — deterministic H3 + DBSCAN clustering, ward mapping
+                against the city pack boundary.
+  3. DRAFT    — Strands drafter agent emits one complaint per hotspot
+                via typed submit_complaint_draft tool.
+  4. FILE     — Strands filer agent calls file_complaint, which is gated
+                by a Strands interrupt: the run pauses, a decision card
+                is created. A human answers approve/edit/drop via
+                resolve_decision() (CLI today, web queue on Day 4).
+                Sandbox city auto-approves so the offline E2E loop works.
 
-Day 1 scope: the full loop runs against the sandbox city pack with a
-planner agent that emits structured ComplaintDrafts; filing is gated
-by a decision card (approve/edit/drop) resolved out-of-band via the
-store (the FastAPI decision queue in a later section resumes it).
+Model mode: TEBAKI_LIVE_BEDROCK=1 swaps every agent onto BedrockModel
+with zero code changes (see app.agents.model_factory).
 """
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
-from pydantic import BaseModel, Field
-from strands import Agent
-
+from app.agents.model_factory import model_mode
+from app.agents.registry import pause_filing, resume_filing, set_filing_context
+from app.agents.roles import decision_card_from_interrupt, drafter_agent, filer_agent, triage_agent
 from app.channels import channel_from_pack
 from app.city_pack import load_city_pack
 from app.config import settings
-from app.store import Complaint, DecisionCard, Report, get_store
+from app.geo import GeoPoint, cluster_reports, load_boundary_features, map_ward
+from app.store import get_store
+
+_RESOLUTIONS = {"approve": "approved", "edit": "edited", "drop": "dropped"}
 
 
-class ComplaintDraft(BaseModel):
-    """Structured output of the drafter agent."""
-
-    category: str = Field(description="waste|pothole|streetlight|drain|water")
-    severity: int = Field(ge=1, le=5, description="1 (minor) to 5 (hazard)")
-    report_refs: list[str] = Field(description="report ids included in this complaint")
-    lat: float
-    lon: float
-    ward: str = Field(description="admin unit (sub-city) this complaint belongs to")
-    subject: str
-    text: str
-    cite: str | None = Field(default=None, description="regulation citation from the city pack")
-    duplicates_note: str | None = Field(default=None)
-
-
-NIGHTLY_SYSTEM_PROMPT = """\
-You are Tebaki, the city's guardian agent. You run at night, while the \
-city sleeps. Your job: turn residents' raw issue reports into properly \
-filed municipal complaints, and never file anything without a human \
-decision card approval.
-
-Working rules:
-- Ward mapping: the city pack boundary defines the city. Use the ward \
-name given in context; never invent one.
-- Regulation: only cite the regulation given in context (or the city's \
-regulation you find in the reports context). Never invent a law.
-- Severity: 5 = immediate hazard (flooding, exposed wiring), 3 = \
-degraded service, 1 = cosmetic.
-- Text: plain, factual, first-person-plural ("residents report..."), \
-no exaggeration, no invented details. If the city's languages include \
-a local language, keep the text in English; translation happens later.
-- Duplicates: mention in duplicates_note when multiple reports describe \
-the same issue; do not silently merge conflicting categories.
-"""
-
-
-def triage_cluster_draft(reports: list[Report], pack: Any) -> list[dict[str, Any]]:
-    """Deterministic Day-1 stand-in for the triage/cluster/drafter agents.
-
-    Groups new reports by category + 0.01-degree proximity and emits one
-    complaint-draft payload per cluster. The Strands sub-agents (Day 2)
-    replace the internals; this signature stays.
-    """
-    clusters: list[dict[str, Any]] = []
-    for report in reports:
-        placed = False
-        for cluster in clusters:
-            if cluster["category"] == report.category and abs(cluster["lat"] - report.lat) < 0.01 and abs(cluster["lon"] - report.lon) < 0.01:
-                cluster["report_refs"].append(report.report_id)
-                cluster["notes"].append(f"{report.report_id}: {report.note}")
-                placed = True
-                break
-        if not placed:
-            clusters.append(
-                {
-                    "category": report.category,
-                    "report_refs": [report.report_id],
-                    "lat": report.lat,
-                    "lon": report.lon,
-                    "ward": getattr(pack.city, "name", "Sandbox City"),
-                    "notes": [f"{report.report_id}: {report.note}"],
-                }
-            )
-    return clusters
-
-
-def draft_complaint_text(cluster: dict[str, Any], pack: Any) -> tuple[str, str, str | None]:
-    """Render subject/text/cite for a cluster (Day-1 template)."""
-    n = len(cluster["report_refs"])
-    cite = pack.regulations[0].cite if pack.regulations else None
-    subject = f"{cluster['category'].title()} issue in {cluster['ward']} ({n} report{'s' if n > 1 else ''})"
-    text = (
-        f"Residents report a {cluster['category']} issue at approximate location "
-        f"({cluster['lat']:.4f}, {cluster['lon']:.4f}) in {cluster['ward']}.\n"
-        f"Number of resident reports: {n}.\n"
-        f"Details: {' | '.join(cluster['notes'])}\n"
-        "We request acknowledgment and a resolution timeline as required by the applicable regulations."
-    )
-    return subject, text, cite
-
-
-def run_nightly_cycle(city_pack_name: str | None = None, agent: Agent | None = None) -> dict[str, Any]:
+def run_nightly_cycle(
+    city_pack_name: str | None = None,
+    auto_approve: bool | None = None,
+) -> dict[str, Any]:
     """Run the full nightly cycle for a city pack.
 
-    Returns a run summary dict. The Strands agent (if provided) is used
-    for drafting; Day-1 falls back to the deterministic template.
+    auto_approve: None means "sandbox city auto-approves, others wait for
+    a human" (the demo-friendly default). Explicit True/False overrides.
     """
     pack_name = city_pack_name or settings.city_pack
     cities_dir = settings.cities_dir.resolve()
@@ -116,83 +49,149 @@ def run_nightly_cycle(city_pack_name: str | None = None, agent: Agent | None = N
 
     store = get_store()
     run = store.start_run(pack.city.name)
-    run.add_event("cycle_start", city=pack.city.name, pack=pack_name)
+    run.add_event("cycle_start", city=pack.city.name, pack=pack_name, model=model_mode())
+
+    channel = channel_from_pack(pack)
+    set_filing_context(pack.city.name, channel)
+
+    if auto_approve is None:
+        auto_approve = pack.city.name == "Sandbox City"
 
     new_reports = store.new_reports()
-    run.add_event("triage", new_reports=len(new_reports))
     if not new_reports:
         store.finish_run(run)
         run.add_event("cycle_end", outcome="no_new_reports")
         return run.to_dict()
+    run.add_event("triage_start", new_reports=len(new_reports))
 
-    clusters = triage_cluster_draft(new_reports, pack)
-    run.add_event("cluster", clusters=len(clusters))
+    # 1) TRIAGE — Strands agent over the batch of new reports
+    triage = triage_agent()
+    triage(json.dumps({"reports": [r.to_dict() for r in new_reports]}))
+    accepted = [r for r in store.reports.values() if r.status == "triaged"]
+    rejected = [r for r in store.reports.values() if r.status == "rejected"]
+    run.add_event("triage_done", accepted=len(accepted), rejected=len(rejected))
+    if not accepted:
+        store.finish_run(run)
+        run.add_event("cycle_end", outcome="all_rejected")
+        return run.to_dict()
 
-    channel = channel_from_pack(pack)
-
-    filed, awaiting, dropped = [], [], []
+    # 2) CLUSTER — H3 + DBSCAN over triaged reports, ward mapping
+    points = [
+        GeoPoint(
+            lat=r.lat,
+            lon=r.lon,
+            category=r.category,
+            report_id=r.report_id,
+            note=r.note,
+            severity=r.severity,
+        )
+        for r in accepted
+    ]
+    clusters = cluster_reports(points)
+    features = load_boundary_features(cities_dir / pack.boundary.geojson)
     for cluster in clusters:
-        subject, text, cite = draft_complaint_text(cluster, pack)
-        draft_payload = {
-            **cluster,
-            "subject": subject,
-            "text": text,
-            "cite": cite,
-        }
-        complaint = store.add_complaint(
-            Complaint(
-                report_refs=cluster["report_refs"],
-                ward=cluster["ward"],
-                draft_text=text,
-                status="awaiting_approval",
-            )
-        )
-        card = store.add_decision_card(
-            DecisionCard(
-                complaint_draft={**draft_payload, "complaint_id": complaint.complaint_id},
-                context={"city": pack.city.name, "channel": channel.channel},
-            )
-        )
-        run.add_event("decision_card_created", card_id=card.card_id, complaint_id=complaint.complaint_id)
+        cluster.ward = map_ward(cluster.lat, cluster.lon, features, fallback=pack.city.name)
+    run.add_event("cluster_done", clusters=len(clusters))
 
-        # Day-1 auto-approve policy for the sandbox city: resolve immediately
-        # so the loop exercises filing end-to-end offline. Real runs keep the
-        # card pending until the human answers via the decision queue API.
-        if pack.city.name == "Sandbox City":
-            store.resolve_card(card.card_id, "approved", response={"auto": "sandbox-policy"})
-            outcome = _file_complaint(channel, complaint, draft_payload)
-            if outcome.ok:
-                complaint.status = "filed"
-                complaint.ticket_id = outcome.ticket_id
-                complaint.channel = outcome.channel
-                filed.append(complaint.complaint_id)
-                for rid in cluster["report_refs"]:
-                    store.update_report_status(rid, "filed")
-                run.add_event(
-                    "filed",
-                    complaint_id=complaint.complaint_id,
-                    ticket_id=outcome.ticket_id,
-                    channel=outcome.channel,
-                )
-            else:
-                complaint.status = "filing_failed"
-                run.add_event("filing_failed", complaint_id=complaint.complaint_id, detail=outcome.detail)
+    # 3) DRAFT — drafter agent per hotspot cluster
+    drafter = drafter_agent()
+    regulation = pack.regulations[0].cite if pack.regulations else None
+    for cluster in clusters:
+        payload = {
+            "cluster": {
+                "category": cluster.category,
+                "report_refs": cluster.report_ids,
+                "lat": cluster.lat,
+                "lon": cluster.lon,
+                "ward": cluster.ward,
+                "notes": cluster.notes,
+                "max_severity": cluster.max_severity,
+            },
+            "regulation": regulation,
+            "city": pack.city.name,
+        }
+        drafter(json.dumps(payload))
+    drafts = [c for c in store.complaints.values() if c.status == "awaiting_approval"]
+    run.add_event("drafts_ready", complaints=len(drafts))
+
+    # 4) FILE — filer agent per complaint, interrupt-gated
+    pending: list[str] = []
+    filed_count = dropped_count = failed_count = 0
+    for complaint in drafts:
+        filer = filer_agent()
+        result = filer(json.dumps({"draft": complaint.draft_payload}))
+        if result.interrupts:
+            interrupt = result.interrupts[0]
+            card = decision_card_from_interrupt("tebaki-filer", interrupt)
+            pause_filing(card.card_id, filer, interrupt.id)
+            run.add_event("decision_card", card_id=card.card_id, complaint_id=complaint.complaint_id)
+            if auto_approve:
+                resolve_decision(card.card_id, "approve")
+        if complaint.status == "filed":
+            filed_count += 1
+            run.add_event(
+                "filed",
+                complaint_id=complaint.complaint_id,
+                ticket_id=complaint.ticket_id,
+                channel=complaint.channel,
+            )
+        elif complaint.status == "filing_failed":
+            failed_count += 1
+            run.add_event("filing_failed", complaint_id=complaint.complaint_id)
+        elif complaint.status == "dropped":
+            dropped_count += 1
+            run.add_event("dropped", complaint_id=complaint.complaint_id)
         else:
-            awaiting.append(card.card_id)
+            pending.append(complaint.complaint_id)
 
     store.finish_run(run)
-    run.add_event("cycle_end", filed=len(filed), awaiting_approval=len(awaiting), failed=len(dropped))
+    run.add_event(
+        "cycle_end",
+        filed=filed_count,
+        dropped=dropped_count,
+        failed=failed_count,
+        awaiting_approval=len(pending),
+    )
     return run.to_dict()
 
 
-def _file_complaint(channel: Any, complaint: Complaint, draft_payload: dict[str, Any]) -> Any:
-    return channel.file(
-        {
-            "category": draft_payload["category"],
-            "lat": draft_payload["lat"],
-            "lon": draft_payload["lon"],
-            "text": draft_payload["text"],
-            "subject": draft_payload["subject"],
-            "cite": draft_payload.get("cite"),
-        }
+def resolve_decision(
+    card_id: str, action: str, fields: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Answer a pending filing decision card and resume the paused filer.
+
+    action: "approve" files as drafted; "edit" merges `fields` into the
+    tool input then files; "drop" cancels the filing.
+    """
+    if action not in _RESOLUTIONS:
+        raise ValueError(f"invalid action {action!r}: approve|edit|drop")
+    store = get_store()
+    if card_id not in store.decision_cards:
+        raise ValueError(f"unknown decision card {card_id!r}")
+    card = store.decision_cards[card_id]
+    if card.status != "pending":
+        raise ValueError(f"card {card_id} already resolved ({card.status})")
+
+    paused = resume_filing(card_id)
+    response: Any = {"action": "edit", "fields": fields or {}} if action == "edit" else action
+    result = paused.agent(
+        [{"interruptResponse": {"interruptId": paused.interrupt_id, "response": response}}]
     )
+
+    complaint = store.complaints[card.complaint_draft["complaint_id"]]
+    if action == "drop" and complaint.status == "awaiting_approval":
+        complaint.status = "dropped"
+    store.resolve_card(
+        card_id,
+        _RESOLUTIONS[action],
+        response={"action": action, "fields": fields} if fields else {"action": action},
+    )
+    return {
+        "card_id": card_id,
+        "action": action,
+        "complaint_id": complaint.complaint_id,
+        "status": complaint.status,
+        "ticket_id": complaint.ticket_id,
+        "channel": complaint.channel,
+        "stop_reason": result.stop_reason,
+    }

@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
-from collections.abc import AsyncIterable, Awaitable, Callable
+from collections.abc import AsyncIterable, Callable
 from typing import Any
 
 from strands.models import Model
@@ -31,27 +31,36 @@ _PAYLOAD_RE = re.compile(r"\{.*\}", re.DOTALL)
 Script = Callable[[dict[str, Any], list[ToolSpec]], tuple[str, dict[str, Any]]]
 
 
-def _extract_payload(messages: Messages) -> dict[str, Any]:
+def _last_user_message(messages: Messages) -> Message | None:
     for message in reversed(messages):
         if message.get("role") == "user":
-            for block in message.get("content", []):
-                if isinstance(block, dict) and "text" in block:
-                    match = _PAYLOAD_RE.search(block["text"])
-                    if match:
-                        return json.loads(match.group(0))
+            return message
+    return None
+
+
+def _extract_payload(messages: Messages) -> dict[str, Any]:
+    message = _last_user_message(messages)
+    if message is None:
+        return {}
+    for block in message.get("content", []):
+        if isinstance(block, dict) and "text" in block:
+            match = _PAYLOAD_RE.search(block["text"])
+            if match:
+                return json.loads(match.group(0))
     return {}
 
 
 def _last_tool_result(messages: Messages) -> str | None:
-    for message in reversed(messages):
-        if message.get("role") == "user":
-            for block in message.get("content", []):
-                if isinstance(block, dict) and "toolResult" in block:
-                    content = block["toolResult"].get("content", [])
-                    for part in content:
-                        if isinstance(part, dict) and "text" in part:
-                            return part["text"]
-                    return ""
+    message = _last_user_message(messages)
+    if message is None:
+        return None
+    for block in message.get("content", []):
+        if isinstance(block, dict) and "toolResult" in block:
+            content = block["toolResult"].get("content", [])
+            for part in content:
+                if isinstance(part, dict) and "text" in part:
+                    return part["text"]
+            return ""
     return None
 
 
@@ -75,22 +84,26 @@ def _is_amharic(text: str) -> bool:
 
 
 def triage_script(payload: dict[str, Any], tool_specs: list[ToolSpec]) -> tuple[str, dict[str, Any]]:
-    report = payload["report"]
-    note = report.get("note", "")
-    category = report.get("category", "waste")
-    if category not in {"waste", "pothole", "streetlight", "drain", "water"}:
-        category = "waste"
-    return (
-        "submit_triage",
-        {
-            "report_id": report.get("report_id", ""),
-            "category": category,
-            "severity": _severity(note),
-            "valid": bool(note.strip()),
-            "reason": "scripted triage: note present and category plausible" if note.strip() else "empty note",
-            "language": "am" if _is_amharic(note) else "en",
-        },
-    )
+    reports = payload.get("reports") or [payload["report"]]
+    results = []
+    for report in reports:
+        note = report.get("note", "")
+        category = report.get("category", "waste")
+        if category not in {"waste", "pothole", "streetlight", "drain", "water"}:
+            category = "waste"
+        results.append(
+            {
+                "report_id": report.get("report_id", ""),
+                "category": category,
+                "severity": _severity(note),
+                "valid": bool(note.strip()),
+                "reason": "scripted triage: note present and category plausible"
+                if note.strip()
+                else "empty note",
+                "language": "am" if _is_amharic(note) else "en",
+            }
+        )
+    return ("submit_triage", {"results": results})
 
 
 def drafter_script(payload: dict[str, Any], tool_specs: list[ToolSpec]) -> tuple[str, dict[str, Any]]:

@@ -30,6 +30,8 @@ class Report:
         note: str = "",
         photo_key: str | None = None,
         status: str = "new",
+        severity: int = 3,
+        language: str = "en",
     ) -> None:
         self.report_id = report_id or f"R-{uuid4().hex[:8].upper()}"
         self.reporter = reporter
@@ -38,7 +40,9 @@ class Report:
         self.lon = lon
         self.note = note
         self.photo_key = photo_key
-        self.status = status  # new | triaged | clustered | filed
+        self.status = status  # new | triaged | rejected | filed
+        self.severity = severity
+        self.language = language
         self.created_at = _now()
 
     def to_dict(self) -> dict[str, Any]:
@@ -51,6 +55,8 @@ class Report:
             "note": self.note,
             "photo_key": self.photo_key,
             "status": self.status,
+            "severity": self.severity,
+            "language": self.language,
             "created_at": self.created_at,
         }
 
@@ -92,6 +98,7 @@ class Complaint:
         status: str = "awaiting_approval",
         ticket_id: str | None = None,
         channel: str = "",
+        draft_payload: dict[str, Any] | None = None,
     ) -> None:
         self.complaint_id = complaint_id or f"C-{uuid4().hex[:8].upper()}"
         self.report_refs = report_refs or []
@@ -99,8 +106,10 @@ class Complaint:
         self.draft_text = draft_text
         self.status = status
         # draft -> awaiting_approval -> filed -> acknowledged -> resolved -> escalated_N
+        # (or dropped / filing_failed)
         self.ticket_id = ticket_id
         self.channel = channel
+        self.draft_payload = draft_payload
         self.created_at = _now()
 
     def to_dict(self) -> dict[str, Any]:
