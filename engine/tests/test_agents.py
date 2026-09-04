@@ -16,8 +16,9 @@ def test_auto_approve_sandbox_files_end_to_end(portal_client, three_reports) -> 
 
     triage_done = next(e for e in summary["events"] if e["kind"] == "triage_done")
     assert triage_done["accepted"] == 3 and triage_done["rejected"] == 0
+    assert triage_done["graph_nodes"] == ["triage", "cluster", "drafter"]
     cluster_done = next(e for e in summary["events"] if e["kind"] == "cluster_done")
-    assert cluster_done["clusters"] == 2
+    assert cluster_done["clustered"] == 3  # reports that made it through clustering
 
     filed_events = [e for e in summary["events"] if e["kind"] == "filed"]
     assert len(filed_events) == 2
@@ -35,7 +36,8 @@ def test_cycle_pauses_on_decision_cards(portal_client, three_reports) -> None:
     assert len(cards) == 2
     assert all(c.status == "awaiting_approval" for c in store.complaints.values())
     assert store.filed_complaints() == []
-    assert all(r.status == "triaged" for r in store.reports.values())
+    # reports passed the graph phase (triaged -> clustered) but nothing filed yet
+    assert all(r.status == "clustered" for r in store.reports.values())
 
 
 def test_resume_approve_files_with_ticket(portal_client, three_reports) -> None:
@@ -115,6 +117,19 @@ def test_triage_rejects_empty_notes(portal_client, clean_store) -> None:
     assert triage_done["rejected"] == 1 and triage_done["accepted"] == 1
     assert store.reports[empty.report_id].status == "rejected"
     assert store.reports[good.report_id].status == "filed"
+
+
+def test_graph_conditional_edge_skips_stages_when_all_rejected(portal_client, clean_store) -> None:
+    """All-rejected -> the graph completes after triage only (edges untraversed)."""
+    store = clean_store
+    store.add_report(Report(category="waste", lat=9.01, lon=38.76, note="   "))
+    store.add_report(Report(category="pothole", lat=9.05, lon=38.70, note=""))
+
+    summary = run_nightly_cycle("sandbox")
+    triage_done = next(e for e in summary["events"] if e["kind"] == "triage_done")
+    assert triage_done["graph_nodes"] == ["triage"]  # cluster/drafter skipped
+    assert summary["events"][-1]["outcome"] == "all_rejected"
+    assert store.complaints == {}
 
 
 def test_amharic_note_detected(portal_client, clean_store) -> None:

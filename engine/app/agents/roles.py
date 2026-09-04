@@ -20,7 +20,13 @@ from strands.hooks import BeforeToolCallEvent
 
 from app.agents.model_factory import get_model
 from app.agents.registry import get_filing_city
-from app.agents.tools import file_complaint, submit_complaint_draft, submit_triage
+from app.agents.tools import (
+    cluster_triaged_reports,
+    file_complaint,
+    submit_chase_results,
+    submit_complaint_drafts,
+    submit_triage,
+)
 from app.store import DecisionCard, get_store
 
 TRIAGE_PROMPT = """\
@@ -54,6 +60,29 @@ draft exactly as approved. If the tool reports a failure, report it \
 back; do not retry more than once.
 """
 
+CLUSTERER_PROMPT = """\
+ROLE: CLUSTERER
+You are Tebaki's clustering agent. You group triaged resident reports \
+into hotspot clusters: same category and close enough geographically \
+that they are almost certainly one issue. You map each cluster to its \
+admin ward (sub-city) using the city boundary. Run the clustering tool \
+once for the whole batch and report the clusters it produces.
+"""
+
+CHASER_PROMPT = """\
+ROLE: CHASER
+You are Tebaki's chaser agent — the persistence of the whole system. \
+Every night you review each filed complaint: its current ticket status, \
+days since filing, and the SLA deadlines from the city pack. When a \
+ticket has NOT been acknowledged by the acknowledge deadline, or NOT \
+resolved by the resolve deadline, you escalate it to the next rung of \
+the city's grievance ladder (sub-city -> city -> federal). The \
+escalation letter must be firm but respectful, cite the original \
+complaint and its ticket id, state the missed deadline plainly, and \
+never invent facts. Complaints still inside their deadlines get \
+action "none". Submit one chase result per complaint.
+"""
+
 
 def triage_agent() -> Agent:
     return Agent(
@@ -68,10 +97,20 @@ def triage_agent() -> Agent:
 def drafter_agent() -> Agent:
     return Agent(
         model=get_model(),
-        tools=[submit_complaint_draft],
+        tools=[submit_complaint_drafts],
         system_prompt=DRAFTER_PROMPT,
         callback_handler=None,
         name="tebaki-drafter",
+    )
+
+
+def clusterer_agent() -> Agent:
+    return Agent(
+        model=get_model(),
+        tools=[cluster_triaged_reports],
+        system_prompt=CLUSTERER_PROMPT,
+        callback_handler=None,
+        name="tebaki-clusterer",
     )
 
 
@@ -85,6 +124,16 @@ def filer_agent() -> Agent:
         hooks=[filing_approval_hook],
     )
     return agent
+
+
+def chaser_agent() -> Agent:
+    return Agent(
+        model=get_model(),
+        tools=[submit_chase_results],
+        system_prompt=CHASER_PROMPT,
+        callback_handler=None,
+        name="tebaki-chaser",
+    )
 
 
 # --- the human decision gate -----------------------------------------------------

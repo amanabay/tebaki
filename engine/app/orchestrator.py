@@ -24,11 +24,10 @@ from typing import Any
 
 from app.agents.model_factory import model_mode
 from app.agents.registry import pause_filing, resume_filing, set_filing_context
-from app.agents.roles import decision_card_from_interrupt, drafter_agent, filer_agent, triage_agent
+from app.agents.roles import chaser_agent, decision_card_from_interrupt, filer_agent
 from app.channels import channel_from_pack
 from app.city_pack import load_city_pack
 from app.config import settings
-from app.geo import GeoPoint, cluster_reports, load_boundary_features, map_ward
 from app.store import get_store
 
 _RESOLUTIONS = {"approve": "approved", "edit": "edited", "drop": "dropped"}
@@ -52,7 +51,13 @@ def run_nightly_cycle(
     run.add_event("cycle_start", city=pack.city.name, pack=pack_name, model=model_mode())
 
     channel = channel_from_pack(pack)
-    set_filing_context(pack.city.name, channel)
+    set_filing_context(
+        pack.city.name,
+        channel,
+        sla={"acknowledge_days": pack.sla.acknowledge_days, "resolve_days": pack.sla.resolve_days},
+        escalation_rungs=[r.model_dump() for r in pack.channels.escalation],
+        pack=pack,
+    )
 
     if auto_approve is None:
         auto_approve = pack.city.name == "Sandbox City"
@@ -64,53 +69,27 @@ def run_nightly_cycle(
         return run.to_dict()
     run.add_event("triage_start", new_reports=len(new_reports))
 
-    # 1) TRIAGE — Strands agent over the batch of new reports
-    triage = triage_agent()
-    triage(json.dumps({"reports": [r.to_dict() for r in new_reports]}))
-    accepted = [r for r in store.reports.values() if r.status == "triaged"]
+    # 1-3) GRAPH PHASE — triage -> cluster -> draft as a Strands multiagent
+    # graph with conditional edges (skips stages when nothing is left).
+    from app.agents.nightly_graph import run_graph_phase
+
+    graph_summary = run_graph_phase({"reports": [r.to_dict() for r in new_reports]})
+    accepted = [r for r in store.reports.values() if r.status in ("triaged", "clustered")]
     rejected = [r for r in store.reports.values() if r.status == "rejected"]
-    run.add_event("triage_done", accepted=len(accepted), rejected=len(rejected))
+    run.add_event(
+        "triage_done",
+        accepted=len(accepted),
+        rejected=len(rejected),
+        graph_nodes=graph_summary["completed"],
+    )
     if not accepted:
         store.finish_run(run)
         run.add_event("cycle_end", outcome="all_rejected")
         return run.to_dict()
 
-    # 2) CLUSTER — H3 + DBSCAN over triaged reports, ward mapping
-    points = [
-        GeoPoint(
-            lat=r.lat,
-            lon=r.lon,
-            category=r.category,
-            report_id=r.report_id,
-            note=r.note,
-            severity=r.severity,
-        )
-        for r in accepted
-    ]
-    clusters = cluster_reports(points)
-    features = load_boundary_features(cities_dir / pack.boundary.geojson)
-    for cluster in clusters:
-        cluster.ward = map_ward(cluster.lat, cluster.lon, features, fallback=pack.city.name)
-    run.add_event("cluster_done", clusters=len(clusters))
+    clustered = [r for r in store.reports.values() if r.status == "clustered"]
+    run.add_event("cluster_done", clustered=len(clustered))
 
-    # 3) DRAFT — drafter agent per hotspot cluster
-    drafter = drafter_agent()
-    regulation = pack.regulations[0].cite if pack.regulations else None
-    for cluster in clusters:
-        payload = {
-            "cluster": {
-                "category": cluster.category,
-                "report_refs": cluster.report_ids,
-                "lat": cluster.lat,
-                "lon": cluster.lon,
-                "ward": cluster.ward,
-                "notes": cluster.notes,
-                "max_severity": cluster.max_severity,
-            },
-            "regulation": regulation,
-            "city": pack.city.name,
-        }
-        drafter(json.dumps(payload))
     drafts = [c for c in store.complaints.values() if c.status == "awaiting_approval"]
     run.add_event("drafts_ready", complaints=len(drafts))
 
@@ -195,3 +174,87 @@ def resolve_decision(
         "channel": complaint.channel,
         "stop_reason": result.stop_reason,
     }
+
+
+def run_chase(city_pack_name: str | None = None) -> dict[str, Any]:
+    """Chase filed complaints: check tickets, evaluate SLA clocks, escalate stale cases.
+
+    The chaser Strands agent decides escalate/none per complaint and drafts
+    the escalation letters; the tool applies state changes and records the
+    escalation log. Runs as part of the nightly cycle and on demand.
+    """
+    import json as _json
+    from datetime import UTC, datetime
+
+    pack_name = city_pack_name or settings.city_pack
+    cities_dir = settings.cities_dir.resolve()
+    pack = load_city_pack(cities_dir, pack_name)
+
+    store = get_store()
+    run = store.start_run(pack.city.name)
+    run.add_event("chase_start", city=pack.city.name, pack=pack_name, model=model_mode())
+
+    channel = channel_from_pack(pack)
+    set_filing_context(
+        pack.city.name,
+        channel,
+        sla={"acknowledge_days": pack.sla.acknowledge_days, "resolve_days": pack.sla.resolve_days},
+        escalation_rungs=[r.model_dump() for r in pack.channels.escalation],
+        pack=pack,
+    )
+
+    filed = [c for c in store.complaints.values() if c.ticket_id and c.status.startswith(("filed", "escalated"))]
+    if not filed:
+        store.finish_run(run)
+        run.add_event("chase_end", outcome="no_filed_complaints")
+        return run.to_dict()
+
+    now = datetime.now(UTC)
+    chase_payload = []
+    for complaint in filed:
+        try:
+            ticket = channel.check(complaint.ticket_id)
+            ticket_status = ticket.get("status", "unknown")
+        except Exception as e:  # noqa: BLE001 — chase must survive one bad ticket
+            run.add_event("ticket_check_failed", complaint_id=complaint.complaint_id, detail=str(e)[:120])
+            ticket_status = "unknown"
+        filed_at = datetime.fromisoformat(complaint.filed_at) if complaint.filed_at else now
+        chase_payload.append(
+            {
+                "complaint_id": complaint.complaint_id,
+                "ticket_id": complaint.ticket_id,
+                "ticket_status": ticket_status,
+                "days_since_filing": (now - filed_at).total_seconds() / 86400,
+                "sla_ack_days": pack.sla.acknowledge_days,
+                "sla_resolve_days": pack.sla.resolve_days,
+                "escalation_level": complaint.escalation_level,
+                "category": (complaint.draft_payload or {}).get("category", "civic"),
+                "ward": complaint.ward,
+            }
+        )
+
+    pre_levels = {c.complaint_id: c.escalation_level for c in filed}
+    chaser = chaser_agent()
+    chaser(_json.dumps({"complaints": chase_payload}))
+
+    escalated_now = [
+        c
+        for c in store.complaints.values()
+        if c.escalation_level > pre_levels.get(c.complaint_id, 0)
+    ]
+    for complaint in filed:
+        if complaint.complaint_id in {c.complaint_id for c in escalated_now}:
+            run.add_event(
+                "escalated",
+                complaint_id=complaint.complaint_id,
+                level=complaint.escalation_level,
+                ticket_status=complaint.ticket_status,
+            )
+        else:
+            run.add_event(
+                "checked", complaint_id=complaint.complaint_id, status=complaint.ticket_status
+            )
+
+    store.finish_run(run)
+    run.add_event("chase_end", checked=len(chase_payload), escalated=len(escalated_now))
+    return run.to_dict()

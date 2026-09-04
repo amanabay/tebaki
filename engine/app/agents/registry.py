@@ -20,6 +20,9 @@ from app.channels import SandboxChannel
 class FilingContext:
     city: str
     channel: Any  # SandboxChannel | EmailChannel | ...
+    sla: dict[str, int] | None = None  # {"acknowledge_days": n, "resolve_days": n}
+    escalation_rungs: list[dict[str, Any]] | None = None  # [{level,target,email,after_days}]
+    pack: Any = None  # loaded CityPack
 
 
 class _Registry:
@@ -27,8 +30,17 @@ class _Registry:
         self.context = FilingContext(city="Sandbox City", channel=SandboxChannel())
         self.paused: dict[str, PausedFiling] = {}
 
-    def set_context(self, city: str, channel: Any) -> None:
-        self.context = FilingContext(city=city, channel=channel)
+    def set_context(
+        self,
+        city: str,
+        channel: Any,
+        sla: dict[str, int] | None = None,
+        escalation_rungs: list[dict[str, Any]] | None = None,
+        pack: Any = None,
+    ) -> None:
+        self.context = FilingContext(
+            city=city, channel=channel, sla=sla, escalation_rungs=escalation_rungs, pack=pack
+        )
 
     def pause(self, card_id: str, agent: Agent, interrupt_id: str) -> None:
         self.paused[card_id] = PausedFiling(agent=agent, interrupt_id=interrupt_id)
@@ -55,8 +67,14 @@ def get_filing_context() -> FilingContext:
     return _registry.context
 
 
-def set_filing_context(city: str, channel: Any) -> None:
-    _registry.set_context(city, channel)
+def set_filing_context(
+    city: str,
+    channel: Any,
+    sla: dict[str, int] | None = None,
+    escalation_rungs: list[dict[str, Any]] | None = None,
+    pack: Any = None,
+) -> None:
+    _registry.set_context(city, channel, sla=sla, escalation_rungs=escalation_rungs, pack=pack)
 
 
 def pause_filing(card_id: str, agent: Agent, interrupt_id: str) -> None:

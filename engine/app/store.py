@@ -99,6 +99,10 @@ class Complaint:
         ticket_id: str | None = None,
         channel: str = "",
         draft_payload: dict[str, Any] | None = None,
+        filed_at: str | None = None,
+        escalation_level: int = 0,
+        ticket_status: str | None = None,
+        last_chased_at: str | None = None,
     ) -> None:
         self.complaint_id = complaint_id or f"C-{uuid4().hex[:8].upper()}"
         self.report_refs = report_refs or []
@@ -110,6 +114,12 @@ class Complaint:
         self.ticket_id = ticket_id
         self.channel = channel
         self.draft_payload = draft_payload
+        self.filed_at = filed_at
+        self.ack_deadline: str | None = None
+        self.resolve_deadline: str | None = None
+        self.escalation_level = escalation_level
+        self.ticket_status = ticket_status
+        self.last_chased_at = last_chased_at
         self.created_at = _now()
 
     def to_dict(self) -> dict[str, Any]:
@@ -121,6 +131,12 @@ class Complaint:
             "status": self.status,
             "ticket_id": self.ticket_id,
             "channel": self.channel,
+            "filed_at": self.filed_at,
+            "ack_deadline": self.ack_deadline,
+            "resolve_deadline": self.resolve_deadline,
+            "escalation_level": self.escalation_level,
+            "ticket_status": self.ticket_status,
+            "last_chased_at": self.last_chased_at,
             "created_at": self.created_at,
         }
 

@@ -26,7 +26,6 @@ from strands.types.streaming import StreamEvent
 from strands.types.tools import ToolSpec
 
 _ROLE_RE = re.compile(r"ROLE:\s*([A-Z_]+)")
-_PAYLOAD_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 Script = Callable[[dict[str, Any], list[ToolSpec]], tuple[str, dict[str, Any]]]
 
@@ -38,16 +37,44 @@ def _last_user_message(messages: Messages) -> Message | None:
     return None
 
 
+def _message_text(message: Message) -> str:
+    return "".join(
+        block.get("text", "")
+        for block in message.get("content", [])
+        if isinstance(block, dict) and "text" in block
+    )
+
+
 def _extract_payload(messages: Messages) -> dict[str, Any]:
+    """Return the last top-level JSON object in the last user message.
+
+    Graph node inputs mix the original task JSON with dependency outputs;
+    the last top-level object is the most recent stage's payload. Nested
+    objects are skipped (only outermost objects count).
+    """
     message = _last_user_message(messages)
     if message is None:
         return {}
-    for block in message.get("content", []):
-        if isinstance(block, dict) and "text" in block:
-            match = _PAYLOAD_RE.search(block["text"])
-            if match:
-                return json.loads(match.group(0))
-    return {}
+    text = _message_text(message)
+    decoder = json.JSONDecoder()
+    candidates: list[Any] = []
+    i = 0
+    while i < len(text):
+        if text[i] != "{":
+            i += 1
+            continue
+        try:
+            obj, end = decoder.raw_decode(text, i)
+        except json.JSONDecodeError:
+            i += 1
+            continue
+        if isinstance(obj, dict):
+            candidates.append(obj)
+        i = end  # skip past this object; nested objects are not candidates
+    if not candidates:
+        return {}
+    payload = candidates[-1]
+    return payload if isinstance(payload, dict) else {}
 
 
 def _last_tool_result(messages: Messages) -> str | None:
@@ -107,33 +134,37 @@ def triage_script(payload: dict[str, Any], tool_specs: list[ToolSpec]) -> tuple[
 
 
 def drafter_script(payload: dict[str, Any], tool_specs: list[ToolSpec]) -> tuple[str, dict[str, Any]]:
-    cluster = payload["cluster"]
-    refs = cluster["report_refs"]
-    n = len(refs)
+    """Batch mode: payload {clusters: [...], regulation, city} -> one drafts call."""
+    clusters = payload.get("clusters") or []
     cite = payload.get("regulation")
-    ward = cluster.get("ward", payload.get("city", "Sandbox City"))
-    subject = f"{cluster['category'].title()} issue in {ward} ({n} report{'s' if n > 1 else ''})"
-    text = (
-        f"Residents report a {cluster['category']} issue at approximate location "
-        f"({cluster['lat']:.4f}, {cluster['lon']:.4f}) in {ward}. "
-        f"Number of resident reports: {n}. "
-        "We request acknowledgment and a resolution timeline as required by the applicable regulations."
-    )
-    return (
-        "submit_complaint_draft",
-        {
-            "category": cluster["category"],
-            "severity": cluster.get("severity", 3),
-            "report_refs": refs,
-            "lat": cluster["lat"],
-            "lon": cluster["lon"],
-            "ward": ward,
-            "subject": subject,
-            "text": text,
-            "cite": cite,
-            "duplicates_note": f"{n} reports merged into one complaint" if n > 1 else None,
-        },
-    )
+    city = payload.get("city", "Sandbox City")
+    drafts = []
+    for cluster in clusters:
+        refs = cluster["report_refs"]
+        n = len(refs)
+        ward = cluster.get("ward", city)
+        subject = f"{cluster['category'].title()} issue in {ward} ({n} report{'s' if n > 1 else ''})"
+        text = (
+            f"Residents report a {cluster['category']} issue at approximate location "
+            f"({cluster['lat']:.4f}, {cluster['lon']:.4f}) in {ward}. "
+            f"Number of resident reports: {n}. "
+            "We request acknowledgment and a resolution timeline as required by the applicable regulations."
+        )
+        drafts.append(
+            {
+                "category": cluster["category"],
+                "severity": cluster.get("max_severity", 3),
+                "report_refs": refs,
+                "lat": cluster["lat"],
+                "lon": cluster["lon"],
+                "ward": ward,
+                "subject": subject,
+                "text": text,
+                "cite": cite,
+                "duplicates_note": f"{n} reports merged into one complaint" if n > 1 else None,
+            }
+        )
+    return ("submit_complaint_drafts", {"drafts": drafts})
 
 
 def filer_script(payload: dict[str, Any], tool_specs: list[ToolSpec]) -> tuple[str, dict[str, Any]]:
@@ -152,10 +183,56 @@ def filer_script(payload: dict[str, Any], tool_specs: list[ToolSpec]) -> tuple[s
     )
 
 
+def chaser_script(payload: dict[str, Any], tool_specs: list[ToolSpec]) -> tuple[str, dict[str, Any]]:
+    results = []
+    for c in payload.get("complaints", []):
+        days = c["days_since_filing"]
+        status = c["ticket_status"]
+        ack_deadline = c["sla_ack_days"]
+        resolve_deadline = c["sla_resolve_days"]
+        level = c["escalation_level"]
+        ticket = c.get("ticket_id") or "unknown ticket"
+        stale_ack = status == "pending" and days > ack_deadline
+        stale_resolve = status == "acknowledged" and days > resolve_deadline
+        if not (stale_ack or stale_resolve):
+            results.append(
+                {"complaint_id": c["complaint_id"], "ticket_status": status, "action": "none"}
+            )
+            continue
+        missed = (
+            f"acknowledgment deadline ({ack_deadline} days)" if stale_ack
+            else f"resolution deadline ({resolve_deadline} days)"
+        )
+        next_level = level + 1
+        subject = f"Escalation {next_level}: complaint {c['complaint_id']} ({ticket}) unaddressed"
+        text = (
+            f"We are escalating complaint {c['complaint_id']} (ticket {ticket}), filed {days} days ago "
+            f"regarding a {c['category']} issue in {c['ward']}. The {missed} has passed without "
+            f"response. We request immediate attention and a written response."
+        )
+        results.append(
+            {
+                "complaint_id": c["complaint_id"],
+                "ticket_status": status,
+                "action": "escalate",
+                "escalation_level": next_level,
+                "subject": subject,
+                "text": text,
+            }
+        )
+    return ("submit_chase_results", {"results": results})
+
+
+def clusterer_script(payload: dict[str, Any], tool_specs: list[ToolSpec]) -> tuple[str, dict[str, Any]]:
+    return ("cluster_triaged_reports", {})
+
+
 SCRIPTS: dict[str, Script] = {
     "TRIAGE": triage_script,
+    "CLUSTERER": clusterer_script,
     "DRAFTER": drafter_script,
     "FILER": filer_script,
+    "CHASER": chaser_script,
 }
 
 

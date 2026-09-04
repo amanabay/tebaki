@@ -76,6 +76,15 @@ def _cmd_demo(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_chase(args: argparse.Namespace) -> int:
+    """Chase filed complaints: check tickets, evaluate SLA clocks, escalate stale cases."""
+    from app.orchestrator import run_chase
+
+    summary = run_chase(city_pack_name=args.city)
+    _print_summary(summary)
+    return 0
+
+
 def _print_summary(summary: dict) -> None:
     print(
         f"run {summary['run_id']} ({summary['city']}): "
@@ -111,6 +120,10 @@ def main() -> int:
     demo.add_argument("--fields", help="JSON fields to merge when --decision edit")
     demo.add_argument("--seed", action="store_true", help="seed 3 sample reports first (self-contained demo)")
     demo.set_defaults(func=_cmd_demo)
+
+    chase = sub.add_parser("chase", help="check filed tickets, escalate past-SLA complaints")
+    chase.add_argument("--city", default="sandbox", help="city pack name (default: sandbox)")
+    chase.set_defaults(func=_cmd_chase)
 
     args = parser.parse_args()
     return args.func(args)
