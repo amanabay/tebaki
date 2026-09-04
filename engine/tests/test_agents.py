@@ -1,4 +1,4 @@
-"""Day-2 agent tests: real Strands loop, interrupt pause, resume approve/edit/drop."""
+"""Agent tests: real Strands loop, interrupt pause, resume approve/edit/drop."""
 
 from __future__ import annotations
 

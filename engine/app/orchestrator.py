@@ -1,4 +1,4 @@
-"""Tebaki nightly orchestrator (Day-2: real Strands agents).
+"""Tebaki nightly orchestrator: real Strands agents.
 
 Pipeline per nightly run:
   1. TRIAGE   — Strands triage agent validates/classifies new reports
@@ -6,11 +6,11 @@ Pipeline per nightly run:
   2. CLUSTER  — deterministic H3 + DBSCAN clustering, ward mapping
                 against the city pack boundary.
   3. DRAFT    — Strands drafter agent emits one complaint per hotspot
-                via typed submit_complaint_draft tool.
+                via typed submit_complaint_drafts tool.
   4. FILE     — Strands filer agent calls file_complaint, which is gated
                 by a Strands interrupt: the run pauses, a decision card
                 is created. A human answers approve/edit/drop via
-                resolve_decision() (CLI today, web queue on Day 4).
+                resolve_decision() (CLI today, web queue later).
                 Sandbox city auto-approves so the offline E2E loop works.
 
 Model mode: TEBAKI_LIVE_BEDROCK=1 swaps every agent onto BedrockModel

@@ -3,7 +3,7 @@
 FilingContext carries the channel + city for the current nightly run
 (tools read it at call time). PausedFiling keeps filer agents alive
 across the interrupt pause so a decision answer can resume them.
-In-memory for Day 2; DynamoDB/AgentCore sessions replace it later.
+In-memory for now; DynamoDB/AgentCore sessions replace it later.
 """
 
 from __future__ import annotations

@@ -1,8 +1,8 @@
-"""In-memory run store for Day 1 development.
+"""In-memory run store.
 
 Interface mirrors the future DynamoDB-backed store: reports, complaints,
 decision cards, and agent-run logs. The orchestrator only talks to this
-interface, so swapping in DynamoDB (Day 3+) is a drop-in change.
+interface, so swapping in DynamoDB is a drop-in change.
 """
 
 from __future__ import annotations
