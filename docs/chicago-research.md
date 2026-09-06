@@ -1,36 +1,36 @@
 # Chicago City Pack — Research Checklist
 
-The `chicago.yaml` pack files via the Open311 GeoReport v2 API once the
-service codes below are researched. `tebaki validate cities/chicago.yaml
---strict` passes only when `service_code_map` is filled.
+The `chicago.yaml` pack files via the Open311 GeoReport v2 API.
 
-## Tasks
+## Completed research
 
-### 1. Verify the endpoints (browser — this machine cannot resolve them)
-- [ ] Production: open `https://311api.chicago.gov/open311/v2/services.json?jurisdiction_id=chicago.gov` in a browser; confirm a JSON services list loads.
-- [ ] Test endpoint: check `http://test311api.cityofchicago.org/open311/v2/services.json?jurisdiction_id=chicago.gov` — historically allowed unauthenticated test POSTs.
-- If production 403s without a key, that's expected — key needed for writes.
+### 1. Endpoints (verified 2026-09-06)
+- [x] Production services list: `http://311api.cityofchicago.org/open311/v2/services.json?jurisdiction_id=cityofchicago.org` (124 services, live)
+- [x] Write endpoint: `http://311api.cityofchicago.org/open311/v2/requests.json` (in pack)
+- [x] Jurisdiction id: `cityofchicago.org`
+- Note: an older `311api.chicago.gov` URL floats around stale references — it does not resolve. The canonical Open311 wiki entry uses `cityofchicago.org` hosts.
 
-### 2. Map our categories to service codes
-From the services list, find service codes for (paste the JSON for me and I'll pick):
-- [ ] `waste` — garbage/sanitation complaints (e.g., garbage cart, alley cleanup, tree debris)
-- [ ] `pothole` — pothole complaints
-- [ ] `streetlight` — street light out / alley light out
-- [ ] `drain` — sewer/drain/street flooding complaints
-- [ ] `water` — water main/leak complaints
-- [ ] Fill `service_code_map` in `cities/chicago.yaml`; remove the TODO-RESEARCH block.
+### 2. Service code map (from live services list)
+- [x] `waste` → `4fd3b750e750846c5300001d` (Sanitation Code Violation)
+- [x] `pothole` → `4fd3b656e750846c53000004` (Pothole in Street Complaint)
+- [x] `streetlight` → `4ffa9f2d6018277d400000c8` (Street Light Out Complaint)
+- [x] `drain` → `5c1849d39e6e99eda0add40a` (Sewer Cleaning Inspection Request)
+- [x] `water` → `5c1849cc9e6e99eda0ada57e` (Water On Street Complaint)
 
-### 3. API key
-- [ ] Chicago requires an API key for production POSTs. Check the Open311 wiki (wiki.open311.org/GeoReport_v2/Servers) or Chicago 311 developer resources for the key request process. Store it as `TEBAKI_CHICAGO_311_KEY` in the environment at runtime.
-- If no key is obtainable in time: pivot the proof to the test endpoint (if it accepts writes), or keep Chicago as a "channel wired, awaiting credentials" entry — the adapter is what matters for the demo.
+## Open tasks
+
+### 3. API key (blocks real filings, not the adapter)
+- [ ] Request a production key via `http://311api.cityofchicago.org/open311/v2/apps/new` (City of Chicago Open311 app registration). Store it as `TEBAKI_CHICAGO_311_KEY` at runtime.
+- [ ] Test endpoint `http://test311api.cityofchicago.org/open311/v2/...` may accept unauthenticated test POSTs — verify before requesting a production key.
+- Until a key exists, the adapter is complete and stub-tested; filings against production will return the city's auth error (clean failure).
 
 ## Findings table
 
 | # | Finding | Source | Verified (date) | Applied to pack |
 |---|---------|--------|-----------------|-----------------|
-| 1 | _pending_ | | | |
-| 2 | _pending_ | | | |
-| 3 | _pending_ | | | |
+| 1 | Production/test endpoints + jurisdiction id | Open311 wiki servers list | 2026-09-06 | endpoint, jurisdiction_id |
+| 2 | 5 category service codes | Live services.json (124 services) | 2026-09-06 | service_code_map |
+| 3 | _API key request pending_ | | | |
 
 ## Rules
 

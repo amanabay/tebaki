@@ -77,6 +77,7 @@ def open311_stub(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     state = {"format": "token"}
 
     @stub.post("/v2/requests.json")
+    @stub.post("/open311/v2/requests.json")
     async def create_request(request: Request):
         form = await request.form()
         token = f"311-{len(requests_store) + 1:06d}"
@@ -94,12 +95,14 @@ def open311_stub(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
         return JSONResponse({"token": token}, status_code=201)
 
     @stub.get("/v2/requests/{token}.json")
+    @stub.get("/open311/v2/requests/{token}.json")
     def get_request(token: str):
         if token not in requests_store:
             return JSONResponse([], status_code=404)
         return JSONResponse([requests_store[token]])
 
     @stub.post("/v2/requests/{token}/ack")
+    @stub.post("/open311/v2/requests/{token}/ack")
     def ack_request(token: str):
         if token in requests_store:
             requests_store[token]["status"] = "acknowledged"

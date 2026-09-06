@@ -15,16 +15,20 @@ channels:
   browser: null
   api:
     type: open311
-    endpoint: https://311api.chicago.gov/open311/v2/requests.json
-    jurisdiction_id: chicago.gov
+    endpoint: http://311api.cityofchicago.org/open311/v2/requests.json
+    jurisdiction_id: cityofchicago.org
     api_key_env: TEBAKI_CHICAGO_311_KEY
-    # TODO-RESEARCH: fetch the live services list and map our categories
-    # (see docs/chicago-research.md). Until mapped, filings fail cleanly.
-    service_code_map: null
+    service_code_map:
+      waste: 4fd3b750e750846c5300001d       # Sanitation Code Violation
+      pothole: 4fd3b656e750846c53000004     # Pothole in Street Complaint
+      streetlight: 4ffa9f2d6018277d400000c8 # Street Light Out Complaint
+      drain: 5c1849d39e6e99eda0add40a       # Sewer Cleaning Inspection Request
+      water: 5c1849cc9e6e99eda0ada57e       # Water On Street Complaint
     note: >-
-      GeoReport v2 write endpoint. POST requires an API key supplied via
-      the api_key_env variable. Verify endpoint and key against the
-      Open311 wiki servers list before the live test.
+      GeoReport v2 write endpoint (canonical Open311 wiki entry). Production
+      POSTs require an API key (request via 311api.cityofchicago.org
+      /open311/v2/apps/new) supplied through api_key_env. Service codes
+      fetched from the live services list and verified 2026-09-06.
   escalation:
     - level: city
       target: Chicago 311 (city-level channel is already Open311)
