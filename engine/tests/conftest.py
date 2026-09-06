@@ -1,12 +1,15 @@
-"""Shared fixtures: in-process sandbox portal + clean store + seed reports."""
+"""Shared fixtures: in-process sandbox portal + Open311 stub + clean store."""
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -21,6 +24,15 @@ def _proxy(client: TestClient, method: str, url: str, data: dict | None) -> http
         resp = client.post(path, data=data)
     else:
         resp = client.get(path)
+    return httpx.Response(
+        status_code=resp.status_code,
+        content=resp.content,
+        headers={"content-type": resp.headers.get("content-type", "application/json")},
+        request=httpx.Request(method, url),
+    )
+
+
+def _httpx_response(method: str, url: str, resp) -> httpx.Response:
     return httpx.Response(
         status_code=resp.status_code,
         content=resp.content,
@@ -51,6 +63,69 @@ def clean_store():
     app.store._store = app.store.RunStore()
     yield app.store.get_store()
     app.store._store = None
+
+
+@pytest.fixture()
+def open311_stub(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """In-process Open311 GeoReport v2 stub; patches app.channels httpx calls.
+
+    Set `stub.format = "service_request"` before filing to make POST return
+    the full service_request object instead of a token.
+    """
+    stub = FastAPI()
+    requests_store: dict[str, dict] = {}
+    state = {"format": "token"}
+
+    @stub.post("/v2/requests.json")
+    async def create_request(request: Request):
+        form = await request.form()
+        token = f"311-{len(requests_store) + 1:06d}"
+        requests_store[token] = {
+            "service_request_id": token,
+            "status": "open",
+            "service_code": form.get("service_code"),
+            "description": form.get("description"),
+            "lat": form.get("lat"),
+            "long": form.get("long"),
+            "jurisdiction_id": form.get("jurisdiction_id"),
+        }
+        if state["format"] == "service_request":
+            return JSONResponse([requests_store[token]], status_code=201)
+        return JSONResponse({"token": token}, status_code=201)
+
+    @stub.get("/v2/requests/{token}.json")
+    def get_request(token: str):
+        if token not in requests_store:
+            return JSONResponse([], status_code=404)
+        return JSONResponse([requests_store[token]])
+
+    @stub.post("/v2/requests/{token}/ack")
+    def ack_request(token: str):
+        if token in requests_store:
+            requests_store[token]["status"] = "acknowledged"
+        return JSONResponse([requests_store.get(token)])
+
+    client = TestClient(stub)
+
+    def fake_post(url: str, data: dict | None = None, timeout: float | None = None) -> httpx.Response:
+        resp = client.post(httpx.URL(url).path, data=data)
+        return _httpx_response("POST", url, resp)
+
+    def fake_get(url: str, params: dict | None = None, timeout: float | None = None) -> httpx.Response:
+        resp = client.get(httpx.URL(url).path, params=params)
+        return _httpx_response("GET", url, resp)
+
+    monkeypatch.setattr("app.channels.httpx.post", fake_post)
+    monkeypatch.setattr("app.channels.httpx.get", fake_get)
+    ns = SimpleNamespace(client=client, store=requests_store)
+    ns.format = "token"
+
+    def set_format(fmt: str) -> None:
+        state["format"] = fmt
+        ns.format = fmt
+
+    ns.set_format = set_format
+    return ns
 
 
 @pytest.fixture()

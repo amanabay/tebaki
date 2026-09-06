@@ -111,6 +111,7 @@ class ApiChannel(BaseModel):
     endpoint: str
     jurisdiction_id: str | None = None
     api_key_env: str | None = None
+    service_code_map: dict[str, str] | None = None
     note: str | None = None
 
     @field_validator("endpoint")

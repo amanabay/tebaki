@@ -18,10 +18,13 @@ channels:
     endpoint: https://311api.chicago.gov/open311/v2/requests.json
     jurisdiction_id: chicago.gov
     api_key_env: TEBAKI_CHICAGO_311_KEY
+    # TODO-RESEARCH: fetch the live services list and map our categories
+    # (see docs/chicago-research.md). Until mapped, filings fail cleanly.
+    service_code_map: null
     note: >-
       GeoReport v2 write endpoint. POST requires an API key supplied via
       the api_key_env variable. Verify endpoint and key against the
-      Open311 wiki servers list before the Day-5 live test.
+      Open311 wiki servers list before the live test.
   escalation:
     - level: city
       target: Chicago 311 (city-level channel is already Open311)

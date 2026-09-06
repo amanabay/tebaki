@@ -76,6 +76,8 @@ def _strict_issues(pack: CityPack, path: Path, cities_dir: Path) -> list[str]:
             issues.append(f"{path.name}: placeholder email for {channel.target!r}")
     if _TODO_RE.search(pack.pitch.number) or _TODO_RE.search(pack.pitch.source):
         issues.append(f"{path.name}: pitch number/source is a TODO placeholder")
+    if pack.channels.api is not None and not pack.channels.api.service_code_map:
+        issues.append(f"{path.name}: open311 channel missing service_code_map (research pending)")
     return issues
 
 
