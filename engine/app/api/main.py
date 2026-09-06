@@ -158,9 +158,13 @@ def create_app() -> FastAPI:
 
     # --- admin/ops ---------------------------------------------------------------------
 
+    class NightlyIn(BaseModel):
+        auto_approve: bool | None = None
+
     @app.post("/admin/nightly")
-    def run_nightly() -> dict[str, Any]:
-        return run_nightly_cycle()
+    def run_nightly(body: NightlyIn | None = None) -> dict[str, Any]:
+        auto_approve = body.auto_approve if body else None
+        return run_nightly_cycle(auto_approve=auto_approve)
 
     @app.post("/admin/chase")
     def chase() -> dict[str, Any]:
