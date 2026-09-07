@@ -15,7 +15,7 @@ The `chicago.yaml` pack files via the Open311 GeoReport v2 API.
 - [x] `pothole` → `4fd3b656e750846c53000004` (Pothole in Street Complaint)
 - [x] `streetlight` → `4ffa9f2d6018277d400000c8` (Street Light Out Complaint)
 - [x] `drain` → `5c1849d39e6e99eda0add40a` (Sewer Cleaning Inspection Request)
-- [x] `water` → `5c1849cc9e6e99eda0ada57e` (Water On Street Complaint)
+- [x] `water` → `5c1849cb9e6e99eda0ada172` (Water On Street Complaint)
 
 ## Open tasks
 

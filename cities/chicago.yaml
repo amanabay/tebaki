@@ -23,7 +23,7 @@ channels:
       pothole: 4fd3b656e750846c53000004     # Pothole in Street Complaint
       streetlight: 4ffa9f2d6018277d400000c8 # Street Light Out Complaint
       drain: 5c1849d39e6e99eda0add40a       # Sewer Cleaning Inspection Request
-      water: 5c1849cc9e6e99eda0ada57e       # Water On Street Complaint
+      water: 5c1849cb9e6e99eda0ada172       # Water On Street Complaint
     note: >-
       GeoReport v2 write endpoint (canonical Open311 wiki entry). Production
       POSTs require an API key (request via 311api.cityofchicago.org

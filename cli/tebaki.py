@@ -85,6 +85,99 @@ def _cmd_chase(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_test_chicago(args: argparse.Namespace) -> int:
+    """Check the Chicago Open311 channel: endpoint reachability, service codes, key.
+
+    --file attempts one real filing (a genuine service request to Chicago 311).
+    """
+    import json as _json
+    import os as _os
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    _sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "engine"))
+    import httpx
+
+    from app.city_pack import load_city_pack
+    from app.config import settings as _settings
+
+    pack = load_city_pack(_settings.cities_dir.resolve(), "chicago")
+    api = pack.channels.api
+    if api is None or api.type != "open311":
+        print("[FAIL] chicago pack has no open311 channel")
+        return 1
+
+    base = api.endpoint.rstrip("/").removesuffix("/requests.json")
+    services_url = f"{base}/services.json"
+    params = {"jurisdiction_id": api.jurisdiction_id} if api.jurisdiction_id else None
+
+    print(f"[1/3] fetching live services: {services_url}")
+    try:
+        resp = httpx.get(services_url, params=params, timeout=20)
+        resp.raise_for_status()
+        services = resp.json()
+    except Exception as e:  # noqa: BLE001
+        print(f"[FAIL] endpoint unreachable: {e}")
+        return 1
+    print(f"      {len(services)} services listed")
+
+    print("[2/3] verifying service codes in the chicago pack")
+    by_code = {s.get("service_code"): s.get("service_name") for s in services}
+    code_map = api.service_code_map or {}
+    ok = True
+    for category, code in code_map.items():
+        name = by_code.get(code)
+        if name:
+            print(f"      [OK] {category} -> {code} ({name})")
+        else:
+            print(f"      [FAIL] {category} -> {code} not in live services list")
+            ok = False
+    if not ok:
+        return 1
+
+    key = _os.getenv(api.api_key_env or "") if api.api_key_env else None
+    print("[3/3] API key")
+    if key:
+        print(f"      key present via {api.api_key_env} ({key[:6]}…{key[-4:]})")
+    else:
+        print(f"      [WARN] {api.api_key_env} not set — production filings will be rejected")
+
+    if not args.file:
+        print("\nchannel reachable and codes verified. Authorization can only be proven by a")
+        print("real filing — re-run with --file to submit one genuine service request.")
+        return 0
+
+    print("\n[--file] submitting one real service request (pothole, Monroe St)")
+    from app.channels import Open311Channel
+
+    channel = Open311Channel(
+        endpoint=api.endpoint,
+        jurisdiction_id=api.jurisdiction_id,
+        api_key=key,
+        service_code_map=code_map,
+    )
+    result = channel.file(
+        {
+            "category": "pothole",
+            "lat": 41.8807,
+            "lon": -87.6253,
+            "subject": "Pothole on Monroe St",
+            "text": (
+                "Pothole forming in the right lane of Monroe St near the intersection with "
+                "Wabash Ave; a hazard for cyclists. Requesting inspection and repair."
+            ),
+        }
+    )
+    if result.ok:
+        print(f"      [OK] FILED — ticket/token {result.ticket_id}")
+        print(_json.dumps({"ticket_id": result.ticket_id, "channel": result.channel}))
+        return 0
+    print(f"      [FAIL] filing rejected: {result.detail}")
+    if "403" in result.detail or "401" in result.detail:
+        print("      (key may still be pending city authorization — retry later)")
+    return 1
+
+
 def _print_summary(summary: dict) -> None:
     print(
         f"run {summary['run_id']} ({summary['city']}): "
@@ -124,6 +217,16 @@ def main() -> int:
     chase = sub.add_parser("chase", help="check filed tickets, escalate past-SLA complaints")
     chase.add_argument("--city", default="sandbox", help="city pack name (default: sandbox)")
     chase.set_defaults(func=_cmd_chase)
+
+    test_chicago = sub.add_parser(
+        "test-chicago", help="verify the Chicago Open311 channel (endpoint, codes, key)"
+    )
+    test_chicago.add_argument(
+        "--file",
+        action="store_true",
+        help="also submit one REAL service request to Chicago 311",
+    )
+    test_chicago.set_defaults(func=_cmd_test_chicago)
 
     args = parser.parse_args()
     return args.func(args)
