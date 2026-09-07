@@ -86,14 +86,25 @@ def cluster_triaged_reports() -> str:
     filing = get_filing_context()
     pack = filing.pack
     points = [
-        GeoPoint(lat=r.lat, lon=r.lon, category=r.category, report_id=r.report_id, note=r.note, severity=r.severity)
+        GeoPoint(
+            lat=r.lat,
+            lon=r.lon,
+            category=r.category,
+            report_id=r.report_id,
+            note=r.note,
+            severity=r.severity,
+            plus_ones=r.plus_ones,
+        )
         for r in accepted
     ]
     clusters = cluster_reports(points)
     features = load_boundary_features(_settings.cities_dir.resolve() / pack.boundary.geojson)
+    from app.geocode import reverse_geocode
+
     payload_clusters = []
     for cluster in clusters:
         cluster.ward = map_ward(cluster.lat, cluster.lon, features, fallback=pack.city.name)
+        place = reverse_geocode(cluster.lat, cluster.lon)
         payload_clusters.append(
             {
                 "category": cluster.category,
@@ -101,8 +112,10 @@ def cluster_triaged_reports() -> str:
                 "lat": cluster.lat,
                 "lon": cluster.lon,
                 "ward": cluster.ward,
+                "place": place,
                 "notes": cluster.notes,
                 "max_severity": cluster.max_severity,
+                "resident_count": cluster.residents,
             }
         )
     for r in accepted:

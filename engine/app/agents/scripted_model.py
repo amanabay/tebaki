@@ -156,13 +156,16 @@ def drafter_script(payload: dict[str, Any], tool_specs: list[ToolSpec]) -> tuple
     drafts = []
     for cluster in clusters:
         refs = cluster["report_refs"]
-        n = len(refs)
+        residents = cluster.get("resident_count", len(refs))
         ward = cluster.get("ward", city)
-        subject = f"{cluster['category'].title()} issue in {ward} ({n} report{'s' if n > 1 else ''})"
+        place = cluster.get("place")
+        where = f"near {place}, {ward}" if place else f"in {ward}"
+        subject = f"{cluster['category'].title()} issue {where} ({residents} residents)"
+        notes = "; ".join(f'"{n}"' for n in cluster.get("notes", []))
         text = (
-            f"Residents report a {cluster['category']} issue at approximate location "
-            f"({cluster['lat']:.4f}, {cluster['lon']:.4f}) in {ward}. "
-            f"Number of resident reports: {n}. "
+            f"{residents} residents report a {cluster['category']} issue "
+            f"{where} (approximate location ({cluster['lat']:.4f}, {cluster['lon']:.4f})). "
+            f"Resident notes: {notes or '—'}. "
             "We request acknowledgment and a resolution timeline as required by the applicable regulations."
         )
         drafts.append(
@@ -173,10 +176,12 @@ def drafter_script(payload: dict[str, Any], tool_specs: list[ToolSpec]) -> tuple
                 "lat": cluster["lat"],
                 "lon": cluster["lon"],
                 "ward": ward,
+                "place": place,
+                "resident_count": residents,
                 "subject": subject,
                 "text": text,
                 "cite": cite,
-                "duplicates_note": f"{n} reports merged into one complaint" if n > 1 else None,
+                "duplicates_note": f"{len(refs)} reports merged into one complaint" if len(refs) > 1 else None,
             }
         )
     return ("submit_complaint_drafts", {"drafts": drafts})

@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+
+# No outbound geocoding calls from the test suite (tests that exercise the
+# geocode seam monkeypatch it explicitly).
+os.environ.setdefault("TEBAKI_GEOCODE", "off")
 
 import httpx
 import pytest

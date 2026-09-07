@@ -34,6 +34,7 @@ class GeoPoint:
     note: str = ""
     severity: int = 3
     h3_cell: str = field(default="")
+    plus_ones: int = 0
 
 
 @dataclass
@@ -47,6 +48,12 @@ class Cluster:
     max_severity: int = 1
     h3_cells: list[str] = field(default_factory=list)
     ward: str = ""
+    plus_ones: int = 0
+
+    @property
+    def residents(self) -> int:
+        """Total residents backing the case: reporters + neighbor +1s."""
+        return len(self.report_ids) + self.plus_ones
 
 
 def cluster_reports(points: list[GeoPoint]) -> list[Cluster]:
@@ -78,6 +85,7 @@ def cluster_reports(points: list[GeoPoint]) -> list[Cluster]:
                     notes=[f"{m.report_id}: {m.note}" for m in members],
                     max_severity=max(m.severity for m in members),
                     h3_cells=sorted({m.h3_cell for m in members}),
+                    plus_ones=sum(m.plus_ones for m in members),
                 )
             )
     return clusters
@@ -93,6 +101,7 @@ def _single_cluster(p: GeoPoint) -> Cluster:
         notes=[f"{p.report_id}: {p.note}"],
         max_severity=p.severity,
         h3_cells=[p.h3_cell],
+        plus_ones=p.plus_ones,
     )
 
 
@@ -124,3 +133,8 @@ def map_ward(lat: float, lon: float, features: list[dict], fallback: str) -> str
         if _point_in_ring(lat, lon, feature["geometry"]["coordinates"][0]):
             return feature.get("properties", {}).get("name", fallback)
     return fallback
+
+
+def is_within_boundary(lat: float, lon: float, features: list[dict]) -> bool:
+    """True if the point falls inside any boundary polygon feature."""
+    return any(_point_in_ring(lat, lon, f["geometry"]["coordinates"][0]) for f in features)

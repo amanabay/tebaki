@@ -42,6 +42,7 @@ class Report:
         status: str = "new",
         severity: int = 3,
         language: str = "en",
+        plus_ones: int = 0,
         created_at: str | None = None,
     ) -> None:
         self.report_id = report_id or f"R-{uuid4().hex[:8].upper()}"
@@ -54,6 +55,7 @@ class Report:
         self.status = status  # new | triaged | clustered | rejected | filed
         self.severity = severity
         self.language = language
+        self.plus_ones = plus_ones  # neighbor corroborations
         self.created_at = created_at or _now()
 
     def to_dict(self) -> dict[str, Any]:
@@ -68,6 +70,7 @@ class Report:
             "status": self.status,
             "severity": self.severity,
             "language": self.language,
+            "plus_ones": self.plus_ones,
             "created_at": self.created_at,
         }
 
@@ -84,6 +87,7 @@ class Report:
             status=data.get("status", "new"),
             severity=int(data.get("severity", 3)),
             language=data.get("language", "en"),
+            plus_ones=int(data.get("plus_ones", 0)),
             created_at=data.get("created_at"),
         )
 
@@ -97,6 +101,7 @@ class DecisionCard:
         context: dict[str, Any] | None = None,
         status: str = "pending",
         response: dict[str, Any] | None = None,
+        paused_state: dict[str, Any] | None = None,
         created_at: str | None = None,
     ) -> None:
         self.card_id = card_id or f"D-{uuid4().hex[:8].upper()}"
@@ -104,6 +109,10 @@ class DecisionCard:
         self.context = context or {}
         self.status = status  # pending | approved | edited | dropped
         self.response = response
+        # Serialized SDK snapshot of the paused filer agent (messages +
+        # interrupt state + model state) — lets a restarted engine resume
+        # the human-in-the-loop filing instead of stranding the card.
+        self.paused_state = paused_state
         self.created_at = created_at or _now()
 
     def to_dict(self) -> dict[str, Any]:
@@ -113,6 +122,7 @@ class DecisionCard:
             "context": self.context,
             "status": self.status,
             "response": self.response,
+            "paused_state": self.paused_state,
             "created_at": self.created_at,
         }
 
@@ -124,6 +134,7 @@ class DecisionCard:
             context=data.get("context"),
             status=data.get("status", "pending"),
             response=data.get("response"),
+            paused_state=data.get("paused_state"),
             created_at=data.get("created_at"),
         )
 

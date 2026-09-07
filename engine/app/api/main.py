@@ -7,6 +7,7 @@ The decision-queue endpoints resume real paused Strands interrupts:
 POST /decisions/{card_id}/resolve approves/edits/drops a pending filing.
 """
 
+from functools import lru_cache
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -14,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from app.config import settings
+from app.geo import is_within_boundary, load_boundary_features
 from app.orchestrator import resolve_decision, run_chase, run_nightly_cycle
 from app.store import Report, get_store
 
@@ -31,6 +33,18 @@ class ResolveIn(BaseModel):
     fields: dict[str, Any] | None = None
 
 
+@lru_cache(maxsize=8)
+def _boundary_features(pack_name: str) -> tuple[dict, ...]:
+    """Boundary polygons for the active city pack (cached per pack)."""
+    from pathlib import Path
+
+    from app.city_pack import load_city_pack
+
+    cities_dir = Path(settings.cities_dir)
+    pack = load_city_pack(cities_dir, pack_name)
+    return tuple(load_boundary_features(cities_dir / pack.boundary.geojson))
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="Tebaki API", version="0.1.0")
     app.add_middleware(
@@ -44,6 +58,16 @@ def create_app() -> FastAPI:
 
     @app.post("/reports", status_code=201)
     def submit_report(body: ReportIn) -> dict[str, Any]:
+        # geo-fence: the guardian only watches inside the city boundary
+        try:
+            features = _boundary_features(settings.city_pack)
+        except Exception:  # noqa: BLE001 — no boundary configured -> skip the gate
+            features = ()
+        if features and not is_within_boundary(body.lat, body.lon, list(features)):
+            raise HTTPException(
+                status_code=422,
+                detail="This location is outside the city the guardian watches. Drop the pin inside the city boundary.",
+            )
         store = get_store()
         report = store.add_report(
             Report(
@@ -60,6 +84,17 @@ def create_app() -> FastAPI:
     def list_reports(limit: int = 100) -> list[dict[str, Any]]:
         reports = sorted(get_store().list_reports(), key=lambda r: r.created_at, reverse=True)
         return [r.to_dict() for r in reports[:limit]]
+
+    @app.post("/reports/{report_id}/plus-one", status_code=200)
+    def plus_one(report_id: str) -> dict[str, Any]:
+        """Corroborate an existing report — neighbors add weight to a case."""
+        store = get_store()
+        report = store.get_report(report_id)
+        if report is None:
+            raise HTTPException(status_code=404, detail=f"unknown report {report_id}")
+        report.plus_ones = report.plus_ones + 1
+        store.save_report(report)
+        return {"report_id": report_id, "plus_ones": report.plus_ones}
 
     # --- decision queue ------------------------------------------------------------
 
@@ -91,11 +126,13 @@ def create_app() -> FastAPI:
         complaints = sorted(store.list_complaints(), key=lambda c: c.created_at, reverse=True)
         rows = []
         for c in complaints[:limit]:
-            reporters = [
-                store.get_report(rid).reporter
-                for rid in c.report_refs
-                if store.get_report(rid) is not None
-            ]
+            reporters = []
+            plus_ones = 0
+            for rid in c.report_refs:
+                report = store.get_report(rid)
+                if report is not None:
+                    reporters.append(report.reporter)
+                    plus_ones += report.plus_ones
             rows.append(
                 {
                     "complaint_id": c.complaint_id,
@@ -112,6 +149,7 @@ def create_app() -> FastAPI:
                     "subject": (c.draft_payload or {}).get("subject"),
                     "report_refs": c.report_refs,
                     "reporters": reporters,
+                    "plus_ones": plus_ones,
                     "escalation_log": [
                         {
                             "level": e.get("level"),
@@ -175,6 +213,7 @@ def create_app() -> FastAPI:
                 "lon": r.lon,
                 "status": r.status,
                 "severity": r.severity,
+                "plus_ones": r.plus_ones,
             }
             for r in store.list_reports()
         ]
@@ -189,6 +228,14 @@ def create_app() -> FastAPI:
             for c in store.list_complaints()
         ]
         return {"reports": reports, "complaints": complaints}
+
+    # --- geocoding (for the report map's address search) --------------------------------
+
+    @app.get("/geocode/search")
+    def geocode_search(q: str, limit: int = 5) -> list[dict[str, Any]]:
+        from app.geocode import forward_geocode
+
+        return forward_geocode(q, limit=limit)
 
     # --- admin/ops ---------------------------------------------------------------------
 
