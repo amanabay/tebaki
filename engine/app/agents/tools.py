@@ -5,17 +5,24 @@ agents; `file_complaint` is the real-world action tool. Every filing is
 gated by a human decision card implemented as a Strands interrupt
 raised from the filer agent's BeforeToolCallEvent hook (see
 app.agents.roles.filing_approval_hook).
+
+Batch tools are hardened against malformed model output: bad rows are
+skipped and reported, never half-applied.
 """
 
 from __future__ import annotations
 
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import Any
 
 from strands import tool
 
 from app.channels import FilingResult
 from app.store import Complaint, get_store
+
+_VALID_CATEGORIES = {"waste", "pothole", "streetlight", "drain", "water"}
+_RESOLVED_STATUSES = {"resolved", "closed"}
+_ACKNOWLEDGED_STATUSES = {"acknowledged"}
 
 
 @tool
@@ -29,20 +36,33 @@ def submit_triage(results: list[dict[str, Any]]) -> str:
     """
     store = get_store()
     accepted = 0
+    errors: list[str] = []
     for r in results:
-        report = store.get_report(r["report_id"])
+        rid = str(r.get("report_id", "")).strip()
+        report = store.get_report(rid) if rid else None
         if report is None:
-            return f"error: unknown report_id {r['report_id']}"
+            errors.append(f"unknown report_id {rid!r}")
+            continue
         if not r.get("valid", False):
             report.status = "rejected"
         else:
-            report.category = r["category"]
-            report.severity = int(r.get("severity", 3))
+            category = r.get("category", report.category)
+            if category not in _VALID_CATEGORIES:
+                errors.append(f"{rid}: invalid category {category!r}")
+                continue
+            try:
+                report.severity = max(1, min(5, int(r.get("severity", 3))))
+            except (TypeError, ValueError):
+                report.severity = 3
+            report.category = category
             report.language = r.get("language", "en")
             report.status = "triaged"
             accepted += 1
         store.save_report(report)
-    return f"triaged {accepted}/{len(results)} reports accepted"
+    summary = f"triaged {accepted}/{len(results)} reports accepted"
+    if errors:
+        summary += f"; skipped {len(errors)} bad rows ({'; '.join(errors[:3])})"
+    return summary
 
 
 @tool
@@ -101,18 +121,26 @@ def submit_complaint_drafts(drafts: list[dict[str, Any]]) -> str:
     """
     store = get_store()
     staged: list[str] = []
-    for draft in drafts:
+    errors: list[str] = []
+    for i, draft in enumerate(drafts):
+        missing = [k for k in ("report_refs", "ward", "text") if not draft.get(k)]
+        if missing:
+            errors.append(f"draft #{i}: missing {', '.join(missing)}")
+            continue
         complaint = Complaint(
-            report_refs=draft["report_refs"],
-            ward=draft["ward"],
-            draft_text=draft["text"],
+            report_refs=[str(r) for r in draft["report_refs"]],
+            ward=str(draft["ward"]),
+            draft_text=str(draft["text"]),
             status="awaiting_approval",
         )
         draft["complaint_id"] = complaint.complaint_id
         complaint.draft_payload = draft
         store.add_complaint(complaint)
         staged.append(complaint.complaint_id)
-    return f"staged {len(staged)} complaint drafts: {', '.join(staged)}"
+    summary = f"staged {len(staged)} complaint drafts: {', '.join(staged)}"
+    if errors:
+        summary += f"; skipped {len(errors)} bad drafts ({'; '.join(errors[:3])})"
+    return summary
 
 
 @tool
@@ -121,19 +149,30 @@ def submit_chase_results(results: list[dict[str, Any]]) -> str:
 
     Args:
         results: Each entry: complaint_id (str), ticket_status (str),
-            action ("none"|"escalate"), escalation_level (int, next rung),
-            subject (str), text (str) — subject/text required when escalating.
+            action ("none"|"escalate"), subject (str), text (str) —
+            subject/text required when escalating.
     """
     store = get_store()
-    escalated = 0
+    escalated = resolved = 0
+    errors: list[str] = []
     for r in results:
-        complaint = store.get_complaint(r["complaint_id"])
+        cid = str(r.get("complaint_id", "")).strip()
+        complaint = store.get_complaint(cid) if cid else None
         if complaint is None:
-            return f"error: unknown complaint_id {r['complaint_id']}"
-        complaint.ticket_status = r.get("ticket_status")
+            errors.append(f"unknown complaint_id {cid!r}")
+            continue
+        ticket_status = str(r.get("ticket_status") or "").lower()
+        complaint.ticket_status = ticket_status or None
         complaint.last_chased_at = _now_iso()
-        if r.get("action") == "escalate":
-            level = int(r.get("escalation_level", complaint.escalation_level + 1))
+
+        # closure loop: the city's own ticket state advances the complaint;
+        # escalation still takes precedence over a mere acknowledgement
+        if ticket_status in _RESOLVED_STATUSES and complaint.status != "resolved":
+            complaint.status = "resolved"
+            resolved += 1
+        elif r.get("action") == "escalate":
+            # one rung at a time — the store decides the next level, not the model
+            level = complaint.escalation_level + 1
             complaint.escalation_level = level
             complaint.status = f"escalated_{level}"
             escalated += 1
@@ -142,22 +181,68 @@ def submit_chase_results(results: list[dict[str, Any]]) -> str:
             filing = get_filing_context()
             rungs = filing.escalation_rungs or []
             rung = rungs[min(level - 1, len(rungs) - 1)] if rungs else {}
+            delivery = _send_escalation(rung, r.get("subject", ""), r.get("text", ""))
             complaint.escalation_log = complaint.escalation_log + [
                 {
                     "level": level,
                     "target": rung.get("target", "city"),
+                    "address": delivery.get("address"),
                     "subject": r.get("subject", ""),
                     "text": r.get("text", ""),
                     "at": _now_iso(),
+                    "delivered": delivery.get("delivered", False),
+                    "delivery_detail": delivery.get("detail", ""),
                 }
             ]
+        elif ticket_status in _ACKNOWLEDGED_STATUSES and complaint.status == "filed":
+            complaint.status = "acknowledged"
         store.save_complaint(complaint)
-    return f"chased {len(results)} complaints, escalated {escalated}"
+    summary = f"chased {len(results)} complaints, escalated {escalated}, resolved {resolved}"
+    if errors:
+        summary += f"; skipped {len(errors)} bad rows ({'; '.join(errors[:3])})"
+    return summary
+
+
+def _send_escalation(rung: dict[str, Any], subject: str, text: str) -> dict[str, Any]:
+    """Send an escalation notice through the email channel.
+
+    Target: the rung's email; falls back to the city pack's primary email
+    address. In SES mode, placeholder addresses (the sandbox city) are
+    redirected to the verified sender so the demo shows real delivery.
+    """
+    import os
+
+    from app.agents.registry import get_filing_context
+    from app.channels import EmailChannel, SESEmailChannel
+
+    filing = get_filing_context()
+    pack = filing.pack
+    to = rung.get("email")
+    if not to and pack is not None and pack.channels.email:
+        to = pack.channels.email[0].address
+    if not to:
+        return {"delivered": False, "detail": "no escalation email configured; logged only", "address": None}
+
+    ses_mode = os.getenv("TEBAKI_EMAIL_MODE", "").lower() == "ses"
+    redirected = False
+    if ses_mode and to.endswith((".invalid", "@placeholder.invalid")):
+        to = os.getenv("TEBAKI_SES_FROM", "tebaki@localhost")
+        redirected = True
+
+    if ses_mode:
+        channel = SESEmailChannel(to_address=to, from_address=os.getenv("TEBAKI_SES_FROM", "tebaki@localhost"))
+    else:
+        channel = EmailChannel(to_address=to)
+    result: FilingResult = channel.file(
+        {"category": "escalation", "lat": 0, "lon": 0, "text": text, "subject": subject, "cite": None}
+    )
+    detail = result.detail
+    if redirected:
+        detail = f"[sandbox redirect to sender] {detail}"
+    return {"delivered": result.ok, "detail": detail, "address": to}
 
 
 def _now_iso() -> str:
-    from datetime import UTC, datetime
-
     return datetime.now(UTC).isoformat()
 
 
@@ -182,6 +267,8 @@ def file_complaint(
         text: full complaint text
         cite: regulation citation from the city pack
     """
+    from datetime import timedelta
+
     from app.agents.registry import get_filing_context
 
     filing = get_filing_context()
@@ -194,8 +281,6 @@ def file_complaint(
     if complaint is None:
         return f"error: unknown complaint_id {complaint_id}"
     if result.ok:
-        from datetime import datetime, timedelta
-
         filed_at = datetime.now(UTC)
         ack_days = filing.sla["acknowledge_days"]
         resolve_days = filing.sla["resolve_days"]

@@ -265,6 +265,9 @@ def run_chase(city_pack_name: str | None = None) -> dict[str, Any]:
     # objects above may be stale copies (DynamoDB store).
     fresh = {c.complaint_id: c for c in store.list_complaints()}
     escalated_now = {c.complaint_id for c in fresh.values() if c.escalation_level > pre_levels.get(c.complaint_id, 0)}
+    resolved_now = {
+        c.complaint_id for c in fresh.values() if c.status == "resolved" and c.last_chased_at
+    }
     for complaint in filed:
         current = fresh.get(complaint.complaint_id, complaint)
         if current.complaint_id in escalated_now:
@@ -274,11 +277,22 @@ def run_chase(city_pack_name: str | None = None) -> dict[str, Any]:
                 level=current.escalation_level,
                 ticket_status=current.ticket_status,
             )
+        elif current.complaint_id in resolved_now:
+            run.add_event(
+                "resolved",
+                complaint_id=current.complaint_id,
+                ticket_id=current.ticket_id,
+            )
         else:
             run.add_event(
                 "checked", complaint_id=current.complaint_id, status=current.ticket_status
             )
 
     store.finish_run(run)
-    run.add_event("chase_end", checked=len(chase_payload), escalated=len(escalated_now))
+    run.add_event(
+        "chase_end",
+        checked=len(chase_payload),
+        escalated=len(escalated_now),
+        resolved=len(resolved_now),
+    )
     return run.to_dict()

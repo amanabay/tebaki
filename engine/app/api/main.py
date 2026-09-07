@@ -87,35 +87,69 @@ def create_app() -> FastAPI:
 
     @app.get("/public/ledger")
     def ledger(limit: int = 200) -> list[dict[str, Any]]:
-        complaints = sorted(get_store().list_complaints(), key=lambda c: c.created_at, reverse=True)
-        return [
-            {
-                "complaint_id": c.complaint_id,
-                "ward": c.ward,
-                "status": c.status,
-                "ticket_id": c.ticket_id,
-                "channel": c.channel,
-                "escalation_level": c.escalation_level,
-                "filed_at": c.filed_at,
-                "category": (c.draft_payload or {}).get("category"),
-                "subject": (c.draft_payload or {}).get("subject"),
-                "report_refs": c.report_refs,
-                "created_at": c.created_at,
-            }
-            for c in complaints[:limit]
-        ]
+        store = get_store()
+        complaints = sorted(store.list_complaints(), key=lambda c: c.created_at, reverse=True)
+        rows = []
+        for c in complaints[:limit]:
+            reporters = [
+                store.get_report(rid).reporter
+                for rid in c.report_refs
+                if store.get_report(rid) is not None
+            ]
+            rows.append(
+                {
+                    "complaint_id": c.complaint_id,
+                    "ward": c.ward,
+                    "status": c.status,
+                    "ticket_id": c.ticket_id,
+                    "channel": c.channel,
+                    "escalation_level": c.escalation_level,
+                    "filed_at": c.filed_at,
+                    "ack_deadline": c.ack_deadline,
+                    "resolve_deadline": c.resolve_deadline,
+                    "ticket_status": c.ticket_status,
+                    "category": (c.draft_payload or {}).get("category"),
+                    "subject": (c.draft_payload or {}).get("subject"),
+                    "report_refs": c.report_refs,
+                    "reporters": reporters,
+                    "escalation_log": [
+                        {
+                            "level": e.get("level"),
+                            "target": e.get("target"),
+                            "subject": e.get("subject"),
+                            "at": e.get("at"),
+                            "delivered": e.get("delivered"),
+                        }
+                        for e in c.escalation_log
+                    ],
+                    "created_at": c.created_at,
+                }
+            )
+        return rows
 
     @app.get("/public/scoreboard")
     def scoreboard() -> list[dict[str, Any]]:
-        rows: dict[str, dict[str, int]] = {}
+        rows: dict[str, dict[str, Any]] = {}
         for complaint in get_store().list_complaints():
             row = rows.setdefault(
                 complaint.ward,
-                {"ward": complaint.ward, "complaints": 0, "filed": 0, "resolved": 0, "escalated": 0},
+                {
+                    "ward": complaint.ward,
+                    "complaints": 0,
+                    "filed": 0,
+                    "resolved": 0,
+                    "escalated": 0,
+                    "acknowledged": 0,
+                },
             )
             row["complaints"] += 1
-            if complaint.status.startswith("filed"):
+            if complaint.status.startswith(("filed", "acknowledged", "escalated_")):
                 row["filed"] += 1
+            if complaint.status == "acknowledged":
+                row["acknowledged"] += 1
+            if complaint.status == "resolved":
+                row["filed"] += 1
+                row["resolved"] += 1
             if complaint.status.startswith("escalated_"):
                 row["filed"] += 1
                 row["escalated"] += 1

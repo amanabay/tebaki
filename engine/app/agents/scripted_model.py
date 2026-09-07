@@ -15,7 +15,6 @@ in both modes.
 from __future__ import annotations
 
 import json
-import re
 import uuid
 from collections.abc import AsyncIterable, Callable
 from typing import Any
@@ -25,7 +24,23 @@ from strands.types.content import Message, Messages
 from strands.types.streaming import StreamEvent
 from strands.types.tools import ToolSpec
 
-_ROLE_RE = re.compile(r"ROLE:\s*([A-Z_]+)")
+# Role dispatch: each agent offers exactly one tool; the tool name
+# identifies the role. Prompts carry no dispatch markers.
+_TOOL_ROLE = {
+    "submit_triage": "TRIAGE",
+    "cluster_triaged_reports": "CLUSTERER",
+    "submit_complaint_drafts": "DRAFTER",
+    "file_complaint": "FILER",
+    "submit_chase_results": "CHASER",
+}
+
+
+def _role_from_tools(tool_names: list[str]) -> str | None:
+    for name in tool_names:
+        if name in _TOOL_ROLE:
+            return _TOOL_ROLE[name]
+    return None
+
 
 Script = Callable[[dict[str, Any], list[ToolSpec]], tuple[str, dict[str, Any]]]
 
@@ -293,13 +308,14 @@ class ScriptedModel(Model):
             yield {"messageStop": {"stopReason": "end_turn"}}
             return
 
-        # 2) Otherwise dispatch the role's scripted tool call.
-        match = _ROLE_RE.search(system_prompt or "")
-        if not match:
-            raise RuntimeError("ScriptedModel: no ROLE: marker in system prompt")
-        role = match.group(1)
-        if role not in SCRIPTS:
-            raise RuntimeError(f"ScriptedModel: unknown role {role!r}")
+        # 2) Otherwise dispatch the scripted tool call for this agent's role.
+        #    Role is inferred from the tools the agent offers (each role has
+        #    exactly one tool), so prompts stay free of dispatch markers.
+        role = _role_from_tools(tool_names)
+        if role is None:
+            raise RuntimeError(
+                f"ScriptedModel: no role mapped for tools {tool_names or '<none>'}"
+            )
 
         payload = _extract_payload(messages)
         tool_name, tool_input = SCRIPTS[role](payload, tool_specs)

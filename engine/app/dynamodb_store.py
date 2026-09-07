@@ -205,7 +205,7 @@ class DynamoDBStore(RunStore):
         return [Complaint.from_dict(_num(i)) for i in self._scan_entity(ENTITY_COMPLAINT)]
 
     def filed_complaints(self) -> list[Complaint]:
-        items = self._query_by_status(ENTITY_COMPLAINT, ("filed#", "escalated_"))
+        items = self._query_by_status(ENTITY_COMPLAINT, ("filed#", "acknowledged#", "escalated_"))
         return [c for c in (Complaint.from_dict(_num(i)) for i in items) if c.ticket_id]
 
     # --- decision cards ----------------------------------------------------------------

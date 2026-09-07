@@ -26,26 +26,23 @@ def submit_triage(results: list[dict]) -> str:
     )
 
 
-@pytest.fixture()
-def capture():
-    return []
-
-
-def test_agent_loop_with_scripted_tool_call(capture: list) -> None:
+def test_agent_loop_with_scripted_tool_call() -> None:
     agent = Agent(
         model=ScriptedModel(),
         tools=[submit_triage],
-        system_prompt="You are the triage agent. ROLE: TRIAGE",
+        system_prompt="You are the triage agent. Classify the reports.",
         callback_handler=None,
     )
     payload = {
-        "report": {
-            "report_id": "R-TEST1",
-            "category": "waste",
-            "note": "garbage pile on sidewalk for weeks",
-            "lat": 9.01,
-            "lon": 38.76,
-        }
+        "reports": [
+            {
+                "report_id": "R-TEST1",
+                "category": "waste",
+                "note": "garbage pile on sidewalk for weeks",
+                "lat": 9.01,
+                "lon": 38.76,
+            }
+        ]
     }
     result = agent(json.dumps(payload))
     # The scripted model called the real tool, got its result, and ended the turn.
@@ -53,13 +50,20 @@ def test_agent_loop_with_scripted_tool_call(capture: list) -> None:
     assert "triaged R-TEST1: waste" in str(result)
 
 
-def test_scripted_model_rejects_missing_role() -> None:
-    agent = Agent(model=ScriptedModel(), tools=[submit_triage], system_prompt="no role here", callback_handler=None)
-    with pytest.raises(RuntimeError, match="no ROLE"):
-        agent("hello")
+def test_scripted_model_dispatches_on_tools_not_prompts() -> None:
+    """Role inference comes from the agent's tools; prompts stay marker-free."""
+    agent = Agent(
+        model=ScriptedModel(),
+        tools=[submit_triage],
+        system_prompt="Anything at all — no markers here.",
+        callback_handler=None,
+    )
+    payload = {"reports": [{"report_id": "R-T2", "category": "drain", "note": "blocked", "lat": 9, "lon": 38}]}
+    result = agent(json.dumps(payload))
+    assert result.stop_reason == "end_turn"
 
 
-def test_scripted_model_rejects_tool_contract_break() -> None:
+def test_scripted_model_rejects_unmapped_tools() -> None:
     from strands import tool as strands_tool
 
     @strands_tool
@@ -70,11 +74,11 @@ def test_scripted_model_rejects_tool_contract_break() -> None:
     agent = Agent(
         model=ScriptedModel(),
         tools=[unrelated],
-        system_prompt="You are the triage agent. ROLE: TRIAGE",
+        system_prompt="You are some agent.",
         callback_handler=None,
     )
-    with pytest.raises(RuntimeError, match="wants tool 'submit_triage'"):
-        agent(json.dumps({"report": {"report_id": "R-X", "category": "waste", "note": "x"}}))
+    with pytest.raises(RuntimeError, match="no role mapped"):
+        agent("hello")
 
 
 def test_model_factory_mode() -> None:

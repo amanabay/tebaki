@@ -300,11 +300,11 @@ class RunStore:
         return list(self.complaints.values())
 
     def filed_complaints(self) -> list[Complaint]:
-        """Complaints with a ticket in the active chase set (filed or escalated)."""
+        """Complaints with a ticket in the active chase set (filed/acknowledged/escalated)."""
         return [
             c
             for c in self.complaints.values()
-            if c.ticket_id and c.status.startswith(("filed", "escalated"))
+            if c.ticket_id and c.status.startswith(("filed", "acknowledged", "escalated"))
         ]
 
     def save_complaint(self, complaint: Complaint) -> None:
