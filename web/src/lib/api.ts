@@ -1,0 +1,125 @@
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+
+export interface Report {
+  report_id: string;
+  reporter: string;
+  category: string;
+  lat: number;
+  lon: number;
+  note: string;
+  status: string;
+  severity: number;
+  language: string;
+  created_at: string;
+}
+
+export interface LedgerRow {
+  complaint_id: string;
+  ward: string;
+  status: string;
+  ticket_id: string | null;
+  channel: string;
+  escalation_level: number;
+  filed_at: string | null;
+  category: string | null;
+  subject: string | null;
+  report_refs: string[];
+  created_at: string;
+}
+
+export interface ScoreboardRow {
+  ward: string;
+  complaints: number;
+  filed: number;
+  resolved: number;
+  escalated: number;
+}
+
+export interface ActivityEvent {
+  run_id: string;
+  city: string;
+  at: string;
+  kind: string;
+  [key: string]: unknown;
+}
+
+export interface MapData {
+  reports: Array<{
+    report_id: string;
+    category: string;
+    lat: number;
+    lon: number;
+    status: string;
+    severity: number;
+  }>;
+  complaints: Array<{
+    complaint_id: string;
+    lat: number | null;
+    lon: number | null;
+    status: string;
+    category: string | null;
+  }>;
+}
+
+export interface DecisionCard {
+  card_id: string;
+  created_at: string;
+  draft: {
+    complaint_id: string;
+    category: string;
+    severity: number;
+    report_refs: string[];
+    lat: number;
+    lon: number;
+    ward: string;
+    subject: string;
+    text: string;
+    cite?: string | null;
+    duplicates_note?: string | null;
+  };
+  context: Record<string, unknown>;
+}
+
+export interface ResolveOutcome {
+  card_id: string;
+  action: string;
+  complaint_id: string;
+  status: string;
+  ticket_id: string | null;
+  channel: string;
+  stop_reason: string;
+}
+
+async function json<T>(path: string, init?: RequestInit): Promise<T> {
+  const resp = await fetch(`${API_URL}${path}`, {
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => "");
+    throw new Error(`${resp.status}: ${body.slice(0, 200)}`);
+  }
+  return resp.json() as Promise<T>;
+}
+
+export const api = {
+  submitReport: (r: { category: string; lat: number; lon: number; note: string; reporter: string }) =>
+    json<{ report_id: string; status: string }>("/reports", { method: "POST", body: JSON.stringify(r) }),
+  listReports: () => json<Report[]>("/reports"),
+  listDecisions: () => json<DecisionCard[]>("/decisions"),
+  resolveDecision: (cardId: string, action: "approve" | "edit" | "drop", fields?: Record<string, string>) =>
+    json<ResolveOutcome>(`/decisions/${cardId}/resolve`, {
+      method: "POST",
+      body: JSON.stringify({ action, fields }),
+    }),
+  ledger: () => json<LedgerRow[]>("/public/ledger"),
+  scoreboard: () => json<ScoreboardRow[]>("/public/scoreboard"),
+  activity: () => json<ActivityEvent[]>("/public/activity"),
+  mapData: () => json<MapData>("/public/map"),
+  runNightly: (autoApprove: boolean | null) =>
+    json<Record<string, unknown>>("/admin/nightly", {
+      method: "POST",
+      body: JSON.stringify(autoApprove === null ? {} : { auto_approve: autoApprove }),
+    }),
+  runChase: () => json<Record<string, unknown>>("/admin/chase", { method: "POST" }),
+};

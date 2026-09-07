@@ -1,0 +1,17 @@
+{
+  "name": "Tebaki — The City's Guardian",
+  "short_name": "Tebaki",
+  "description": "Report civic issues once. The guardian agent files, tracks, and escalates them.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#12110e",
+  "theme_color": "#12110e",
+  "icons": [
+    {
+      "src": "/tebaki-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
