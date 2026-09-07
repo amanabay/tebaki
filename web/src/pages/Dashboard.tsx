@@ -12,7 +12,7 @@ import {
   type MapData,
   type ScoreboardRow,
 } from "@/lib/api";
-import { categoryLabel, reportersLabel, timeAgo } from "@/lib/strings";
+import { categoryLabel, residentsLabel, timeAgo } from "@/lib/strings";
 
 interface RunSummary {
   events?: Array<{ kind: string; [k: string]: unknown }>;
@@ -122,7 +122,12 @@ function LedgerTable({ ledger }: { ledger: LedgerRow[] }) {
                     <p className="num text-[11px] text-muted-foreground">{row.complaint_id}</p>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {reportersLabel(row.reporters)}
+                    <span>{residentsLabel(row.reporters, row.plus_ones)}</span>
+                    {(row.plus_ones ?? 0) > 0 && (
+                      <span className="ml-1.5 text-[10px] text-primary">
+                        +{row.plus_ones}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{row.ward}</td>
                   <td className="px-4 py-3 text-muted-foreground">
@@ -305,7 +310,7 @@ export function Dashboard() {
               </span>
             </div>
           </header>
-          <CityMap data={mapData} />
+          <CityMap data={mapData} onDataStale={load} />
         </section>
         <section className="flex flex-col rounded-md border border-border bg-surface-1">
           <NightLogHeader events={activity} />

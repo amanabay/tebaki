@@ -71,6 +71,14 @@ export function reportersLabel(names: string[] | undefined): string {
   return `${real[0]} + ${rest} other${rest === 1 ? "" : "s"}`;
 }
 
+/** "5 residents" — reporters plus neighbor +1s. */
+export function residentsLabel(names: string[] | undefined, plusOnes: number | undefined): string {
+  const reporters = names?.length ?? 0;
+  const total = reporters + (plusOnes ?? 0);
+  if (total === 0) return "—";
+  return `${total} resident${total === 1 ? "" : "s"}`;
+}
+
 const CITY_TZ: Record<string, string> = {
   "Addis Ababa": "Africa/Addis_Ababa",
   "Sandbox City": "Africa/Addis_Ababa",

@@ -8,6 +8,8 @@ import {
   Droplets,
   Lightbulb,
   Check,
+  MapPin,
+  Search,
   Trash2,
   Waves,
 } from "lucide-react";
@@ -54,12 +56,33 @@ export function Report() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [doneId, setDoneId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Array<{ name: string; lat: number; lon: number }>>([]);
+  const [searching, setSearching] = useState(false);
 
   const locateMe = () => {
     navigator.geolocation?.getCurrentPosition(
       (p) => setPos([p.coords.latitude, p.coords.longitude]),
       () => setError("Couldn't read your location — tap the map instead."),
     );
+  };
+
+  const searchAddress = async () => {
+    if (!query.trim()) return;
+    setSearching(true);
+    try {
+      setResults(await api.geocodeSearch(query));
+    } catch {
+      setResults([]);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const pickResult = (r: { name: string; lat: number; lon: number }) => {
+    setPos([r.lat, r.lon]);
+    setResults([]);
+    setQuery(r.name.split(",")[0]);
   };
 
   const submit = async () => {
@@ -147,6 +170,39 @@ export function Report() {
           <Button variant="outline" size="sm" onClick={locateMe} className="h-7 text-xs">
             <Crosshair className="size-3.5" /> Use my location
           </Button>
+        </div>
+        <div className="relative z-20 mb-2">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && searchAddress()}
+                placeholder="Search a place — e.g. Shiro Meda"
+                className="h-9 pl-8 text-sm"
+              />
+            </div>
+            <Button variant="outline" size="sm" onClick={searchAddress} disabled={searching} className="h-9">
+              {searching ? "…" : "Find"}
+            </Button>
+          </div>
+          {results.length > 0 && (
+            <ul className="absolute inset-x-0 top-10 z-30 overflow-hidden rounded-md border border-border bg-surface-2 shadow-xl">
+              {results.map((r) => (
+                <li key={`${r.lat}-${r.lon}`}>
+                  <button
+                    type="button"
+                    onClick={() => pickResult(r)}
+                    className="flex w-full items-start gap-2 px-3 py-2 text-left text-xs hover:bg-surface-1"
+                  >
+                    <MapPin className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                    <span className="line-clamp-2">{r.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div className="overflow-hidden rounded-md border border-border">
           <MapContainer

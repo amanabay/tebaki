@@ -28,6 +28,7 @@ export interface LedgerRow {
   subject: string | null;
   report_refs: string[];
   reporters?: string[];
+  plus_ones?: number;
   escalation_log?: Array<{
     level: number | null;
     target: string | null;
@@ -63,6 +64,7 @@ export interface MapData {
     lon: number;
     status: string;
     severity: number;
+    plus_ones: number;
   }>;
   complaints: Array<{
     complaint_id: string;
@@ -118,6 +120,12 @@ export const api = {
   submitReport: (r: { category: string; lat: number; lon: number; note: string; reporter: string }) =>
     json<{ report_id: string; status: string }>("/reports", { method: "POST", body: JSON.stringify(r) }),
   listReports: () => json<Report[]>("/reports"),
+  plusOne: (reportId: string) =>
+    json<{ report_id: string; plus_ones: number }>(`/reports/${reportId}/plus-one`, { method: "POST" }),
+  geocodeSearch: (q: string) =>
+    json<Array<{ name: string; lat: number; lon: number }>>(
+      `/geocode/search?q=${encodeURIComponent(q)}`,
+    ),
   listDecisions: () => json<DecisionCard[]>("/decisions"),
   resolveDecision: (cardId: string, action: "approve" | "edit" | "drop", fields?: Record<string, string>) =>
     json<ResolveOutcome>(`/decisions/${cardId}/resolve`, {

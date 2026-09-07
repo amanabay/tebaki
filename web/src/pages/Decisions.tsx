@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { MoonStar, Pencil, ThumbsDown, Stamp, Users } from "lucide-react";
+import { MoonStar, Pencil, ShieldAlert, ThumbsDown, Stamp, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusStamp } from "@/components/StatusStamp";
@@ -143,6 +143,18 @@ function DecisionCardView({
             {reportersLabel(card.context.reporters as string[])} reported this
           </p>
         )}
+
+        {Array.isArray(card.context.privacy_flags) &&
+          (card.context.privacy_flags as string[]).length > 0 && (
+            <p className="flex items-center gap-2 rounded border border-primary/40 bg-primary/10 px-3 py-2 text-xs text-primary">
+              <ShieldAlert className="size-4 shrink-0" />
+              <span>
+                Personal data found and redacted:{" "}
+                {(card.context.privacy_flags as string[]).join(", ")}. The filing uses the
+                redacted text — use Edit to restore anything the neighborhood consents to share.
+              </span>
+            </p>
+          )}
 
         {error && (
           <p className="rounded border border-status-escalated/40 bg-status-escalated/10 px-3 py-2 text-xs text-status-escalated">
