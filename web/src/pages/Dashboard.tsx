@@ -1,32 +1,84 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { MoonStar, Siren } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { CityMap } from "@/components/CityMap";
 import { NightLog, NightLogHeader } from "@/components/NightLog";
 import { StatusStamp } from "@/components/StatusStamp";
-import { api, type ActivityEvent, type LedgerRow, type MapData, type ScoreboardRow } from "@/lib/api";
-import { categoryLabel, timeAgo } from "@/lib/strings";
+import {
+  api,
+  type ActivityEvent,
+  type LedgerRow,
+  type MapData,
+  type ScoreboardRow,
+} from "@/lib/api";
+import { categoryLabel, reportersLabel, timeAgo } from "@/lib/strings";
+
+interface RunSummary {
+  events?: Array<{ kind: string; [k: string]: unknown }>;
+}
 
 function StatStrip({ ledger, pendingCount }: { ledger: LedgerRow[]; pendingCount: number }) {
-  const filed = ledger.filter((r) => r.status === "filed" || r.status.startsWith("escalated")).length;
+  const active = ledger.filter(
+    (r) => r.status === "filed" || r.status === "acknowledged" || r.status.startsWith("escalated"),
+  ).length;
   const escalated = ledger.filter((r) => r.status.startsWith("escalated")).length;
+  const resolved = ledger.filter((r) => r.status === "resolved").length;
   const stats = [
     { label: "complaints", value: ledger.length, tone: "text-foreground" },
-    { label: "filed", value: filed, tone: "text-status-filed" },
+    { label: "active", value: active, tone: "text-status-filed" },
     { label: "escalated", value: escalated, tone: "text-status-escalated" },
+    { label: "resolved", value: resolved, tone: "text-status-filed" },
     { label: "awaiting you", value: pendingCount, tone: "text-primary" },
   ];
   return (
-    <div className="mb-6 grid grid-cols-2 divide-border rounded-md border border-border bg-surface-1 sm:grid-cols-4 sm:divide-x">
+    <div className="mb-6 grid grid-cols-2 divide-border rounded-md border border-border bg-surface-1 sm:grid-cols-5 sm:divide-x">
       {stats.map((s) => (
         <Link
           to={s.label === "awaiting you" && s.value > 0 ? "/decisions" : "/"}
           key={s.label}
-          className="px-5 py-4 transition-colors hover:bg-surface-2"
+          className="px-4 py-4 transition-colors hover:bg-surface-2"
         >
           <p className="micro-label">{s.label}</p>
           <p className={`num mt-1 text-3xl font-bold ${s.tone}`}>{s.value}</p>
         </Link>
       ))}
+    </div>
+  );
+}
+
+function ShiftBar({
+  busy,
+  message,
+  onNightly,
+  onChase,
+}: {
+  busy: "nightly" | "chase" | null;
+  message: string | null;
+  onNightly: () => void;
+  onChase: () => void;
+}) {
+  return (
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-surface-1 px-4 py-3">
+      <div>
+        <p className="micro-label">the guardian's shift</p>
+        <p className="text-sm text-muted-foreground">
+          Files every night at 02:00 — or start it now.
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        {message && (
+          <span className="max-w-72 text-right text-xs text-muted-foreground">{message}</span>
+        )}
+        <Button onClick={onNightly} disabled={busy !== null}>
+          <MoonStar className="size-4" />
+          {busy === "nightly" ? "Running…" : "Run tonight's cycle"}
+        </Button>
+        <Button variant="outline" onClick={onChase} disabled={busy !== null}>
+          <Siren className="size-4" />
+          {busy === "chase" ? "Chasing…" : "Chase tickets"}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -50,11 +102,13 @@ function LedgerTable({ ledger }: { ledger: LedgerRow[] }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left">
-                {["complaint", "ward", "category", "status", "ticket", "filed"].map((h) => (
-                  <th key={h} className="micro-label px-4 py-2.5 font-semibold">
-                    {h}
-                  </th>
-                ))}
+                {["complaint", "neighbors", "ward", "category", "status", "ticket", "filed"].map(
+                  (h) => (
+                    <th key={h} className="micro-label px-4 py-2.5 font-semibold">
+                      {h}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody>
@@ -66,6 +120,9 @@ function LedgerTable({ ledger }: { ledger: LedgerRow[] }) {
                   <td className="max-w-64 px-4 py-3">
                     <p className="truncate">{row.subject ?? "—"}</p>
                     <p className="num text-[11px] text-muted-foreground">{row.complaint_id}</p>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {reportersLabel(row.reporters)}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{row.ward}</td>
                   <td className="px-4 py-3 text-muted-foreground">
@@ -102,30 +159,41 @@ function Scoreboard({ rows }: { rows: ScoreboardRow[] }) {
         <p className="p-6 text-sm text-muted-foreground">No ward data yet.</p>
       ) : (
         <ul className="divide-y divide-border/50">
-          {rows.map((row) => (
-            <li key={row.ward} className="px-4 py-3">
-              <div className="flex items-baseline justify-between gap-4">
-                <span className="truncate text-sm">{row.ward}</span>
-                <span className="num text-[11px] text-muted-foreground">
-                  {row.filed}/{row.complaints} filed
-                  {row.escalated > 0 && (
-                    <span className="text-status-escalated"> · {row.escalated} esc</span>
-                  )}
-                </span>
-              </div>
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full bg-primary/70"
-                  style={{ width: `${(row.complaints / max) * 100}%` }}
-                >
+          {rows.map((row) => {
+            const awaiting = row.complaints - row.filed;
+            const active = row.filed - row.resolved - row.escalated;
+            return (
+              <li key={row.ward} className="px-4 py-3">
+                <div className="flex items-baseline justify-between gap-4">
+                  <span className="truncate text-sm">{row.ward}</span>
+                  <span className="num text-[11px] text-muted-foreground">
+                    {row.filed}/{row.complaints} filed
+                    {row.resolved > 0 && (
+                      <span className="text-status-filed"> · {row.resolved} resolved</span>
+                    )}
+                    {row.escalated > 0 && (
+                      <span className="text-status-escalated"> · {row.escalated} esc</span>
+                    )}
+                  </span>
+                </div>
+                <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-muted">
                   <div
-                    className="h-full bg-status-escalated/80"
-                    style={{ width: `${(row.escalated / Math.max(1, row.complaints)) * 100}%` }}
+                    className="bg-status-filed"
+                    style={{ width: `${(row.resolved / max) * 100}%` }}
+                  />
+                  <div
+                    className="bg-status-escalated"
+                    style={{ width: `${(row.escalated / max) * 100}%` }}
+                  />
+                  <div className="bg-primary/70" style={{ width: `${(active / max) * 100}%` }} />
+                  <div
+                    className="bg-border"
+                    style={{ width: `${(awaiting / max) * 100}%` }}
                   />
                 </div>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
@@ -139,40 +207,82 @@ export function Dashboard() {
   const [mapData, setMapData] = useState<MapData | null>(null);
   const [pending, setPending] = useState(0);
   const [offline, setOffline] = useState(false);
+  const [busy, setBusy] = useState<"nightly" | "chase" | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    Promise.all([
+      api.ledger().catch(() => [] as LedgerRow[]),
+      api.scoreboard().catch(() => [] as ScoreboardRow[]),
+      api.activity().catch(() => [] as ActivityEvent[]),
+      api.mapData().catch(() => null),
+      api.listDecisions().catch(() => null),
+    ]).then(([l, s, a, m, d]) => {
+      setOffline(d === null);
+      setLedger(l);
+      setScoreboard(s);
+      setActivity(a);
+      if (m) setMapData(m);
+      setPending(d?.length ?? 0);
+    });
+  }, []);
 
   useEffect(() => {
-    let alive = true;
-    const load = () =>
-      Promise.all([
-        api.ledger().catch(() => [] as LedgerRow[]),
-        api.scoreboard().catch(() => [] as ScoreboardRow[]),
-        api.activity().catch(() => [] as ActivityEvent[]),
-        api.mapData().catch(() => null),
-        api.listDecisions().catch(() => null),
-      ]).then(([l, s, a, m, d]) => {
-        if (!alive) return;
-        setOffline(d === null);
-        setLedger(l);
-        setScoreboard(s);
-        setActivity(a);
-        if (m) setMapData(m);
-        setPending(d?.length ?? 0);
-      });
     load();
     const t = setInterval(load, 6000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
-  }, []);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const runNightly = async () => {
+    setBusy("nightly");
+    setMessage(null);
+    try {
+      const summary = (await api.runNightly(false)) as RunSummary;
+      const events = summary.events ?? [];
+      const cards = events.filter((e) => e.kind === "decision_card").length;
+      const filed = events.filter((e) => e.kind === "filed").length;
+      setMessage(
+        cards > 0
+          ? `${cards} draft${cards > 1 ? "s" : ""} waiting for your decision →`
+          : filed > 0
+            ? `${filed} complaint${filed > 1 ? "s" : ""} filed.`
+            : "Cycle done.",
+      );
+      load();
+    } catch (e) {
+      setMessage(`Couldn't run the cycle: ${String(e).slice(0, 100)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const runChase = async () => {
+    setBusy("chase");
+    setMessage(null);
+    try {
+      const summary = (await api.runChase()) as RunSummary;
+      const end = (summary.events ?? []).find((e) => e.kind === "chase_end");
+      setMessage(
+        end
+          ? `Checked ${end.checked}, escalated ${end.escalated}, resolved ${end.resolved ?? 0}.`
+          : "Chase done.",
+      );
+      load();
+    } catch (e) {
+      setMessage(`Couldn't run the chase: ${String(e).slice(0, 100)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
       {offline && (
         <div className="rounded-md border border-primary/40 bg-primary/10 px-4 py-2.5 text-sm text-primary">
-          Engine offline — start it with the API server, then this page comes alive.
+          Can't reach the guardian's engine — is it running?
         </div>
       )}
+      <ShiftBar busy={busy} message={message} onNightly={runNightly} onChase={runChase} />
       <StatStrip ledger={ledger} pendingCount={pending} />
       <div className="grid gap-6 lg:grid-cols-3">
         <section className="overflow-hidden rounded-md border border-border bg-surface-1 lg:col-span-2">
@@ -187,7 +297,7 @@ export function Dashboard() {
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="inline-block size-2.5 rounded-full border border-status-filed" />{" "}
-                filed
+                active
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="inline-block size-2.5 rounded-full border border-status-escalated" />{" "}

@@ -21,9 +21,20 @@ export interface LedgerRow {
   channel: string;
   escalation_level: number;
   filed_at: string | null;
+  ack_deadline?: string | null;
+  resolve_deadline?: string | null;
+  ticket_status?: string | null;
   category: string | null;
   subject: string | null;
   report_refs: string[];
+  reporters?: string[];
+  escalation_log?: Array<{
+    level: number | null;
+    target: string | null;
+    subject: string | null;
+    at: string | null;
+    delivered: boolean | null;
+  }>;
   created_at: string;
 }
 
@@ -33,6 +44,7 @@ export interface ScoreboardRow {
   filed: number;
   resolved: number;
   escalated: number;
+  acknowledged?: number;
 }
 
 export interface ActivityEvent {

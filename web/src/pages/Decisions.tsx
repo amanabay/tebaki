@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { MoonStar, Pencil, ThumbsDown, Stamp } from "lucide-react";
+import { MoonStar, Pencil, ThumbsDown, Stamp, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusStamp } from "@/components/StatusStamp";
@@ -8,7 +8,7 @@ import {
   type DecisionCard as DecisionCardT,
   type ResolveOutcome,
 } from "@/lib/api";
-import { CATEGORIES, timeAgo } from "@/lib/strings";
+import { CATEGORIES, reportersLabel, timeAgo } from "@/lib/strings";
 
 function SeverityDots({ level }: { level: number }) {
   return (
@@ -137,6 +137,13 @@ function DecisionCardView({
           </p>
         )}
 
+        {Array.isArray(card.context.reporters) && (card.context.reporters as string[]).length > 0 && (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Users className="size-3.5 text-primary" />
+            {reportersLabel(card.context.reporters as string[])} reported this
+          </p>
+        )}
+
         {error && (
           <p className="rounded border border-status-escalated/40 bg-status-escalated/10 px-3 py-2 text-xs text-status-escalated">
             {error}
@@ -226,7 +233,7 @@ export function Decisions() {
 
       {offline && (
         <div className="rounded-md border border-primary/40 bg-primary/10 px-4 py-2.5 text-sm text-primary">
-          Engine offline — decisions appear when the API is running.
+          Can't reach the guardian's engine — is it running?
         </div>
       )}
 

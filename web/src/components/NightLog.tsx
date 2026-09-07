@@ -1,19 +1,15 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ActivityEvent } from "@/lib/api";
-import { eventCopy, timeAgo } from "@/lib/strings";
+import { cityClock, eventCopy, timeAgo } from "@/lib/strings";
 
-function clock(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-const AMBER_KINDS = new Set(["filed", "escalated", "decision_card", "chase_end"]);
+const AMBER_KINDS = new Set(["filed", "escalated", "resolved", "decision_card", "chase_end"]);
 
 export function NightLog({ events }: { events: ActivityEvent[] }) {
   if (events.length === 0) {
     return (
       <p className="p-6 text-sm text-muted-foreground">
-        No runs yet. The guardian files at 02:00 — or trigger a cycle from the admin API.
+        No runs yet. The guardian files every night at 02:00 — or start a cycle from the
+        dashboard.
       </p>
     );
   }
@@ -29,7 +25,9 @@ export function NightLog({ events }: { events: ActivityEvent[] }) {
               }
             />
             <div className="flex items-baseline gap-2">
-              <span className="num text-[11px] text-muted-foreground">{clock(e.at)}</span>
+              <span className="num text-[11px] text-muted-foreground">
+                {cityClock(e.at, e.city)}
+              </span>
               <span className="text-sm">{eventCopy(e.kind, e)}</span>
             </div>
           </li>

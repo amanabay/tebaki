@@ -23,14 +23,23 @@ function GuardianMark({ className = "size-5" }: { className?: string }) {
 function Masthead() {
   const location = useLocation();
   const [pending, setPending] = useState<number | null>(null);
+  const [online, setOnline] = useState(true);
 
   useEffect(() => {
     let alive = true;
     const load = () =>
       api
         .listDecisions()
-        .then((cards) => alive && setPending(cards.length))
-        .catch(() => alive && setPending(null));
+        .then((cards) => {
+          if (!alive) return;
+          setPending(cards.length);
+          setOnline(true);
+        })
+        .catch(() => {
+          if (!alive) return;
+          setPending(null);
+          setOnline(false);
+        });
     load();
     const t = setInterval(load, 8000);
     return () => {
@@ -80,15 +89,40 @@ function Masthead() {
             );
           })}
           <span className="ml-3 hidden items-center gap-1.5 md:flex">
-            <span className="relative flex size-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-              <span className="relative inline-flex size-2 rounded-full bg-primary" />
-            </span>
-            <span className="micro-label">on watch</span>
+            {online ? (
+              <>
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+                  <span className="relative inline-flex size-2 rounded-full bg-primary" />
+                </span>
+                <span className="micro-label">on watch</span>
+              </>
+            ) : (
+              <>
+                <span className="inline-flex size-2 rounded-full bg-border" />
+                <span className="micro-label">off watch</span>
+              </>
+            )}
           </span>
         </nav>
       </div>
     </header>
+  );
+}
+
+function NotFound() {
+  return (
+    <div className="mx-auto max-w-md py-20 text-center">
+      <GuardianMark className="mx-auto size-10 text-primary" />
+      <h2 className="mt-4 text-xl font-semibold">Nothing on watch here.</h2>
+      <p className="mt-2 text-sm text-muted-foreground">
+        This page doesn't exist — the guardian keeps to the ledger, the report desk, and the
+        decision queue.
+      </p>
+      <Link to="/" className="mt-4 inline-block text-sm text-primary underline-offset-4 hover:underline">
+        Back to the ledger
+      </Link>
+    </div>
   );
 }
 
@@ -101,6 +135,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/report" element={<Report />} />
           <Route path="/decisions" element={<Decisions />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
       <footer className="mt-12 border-t border-border py-6">

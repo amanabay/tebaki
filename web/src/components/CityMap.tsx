@@ -1,8 +1,28 @@
-import { CircleMarker, MapContainer, TileLayer, Tooltip } from "react-leaflet";
+import { useEffect } from "react";
+import { CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from "react-leaflet";
 import type { MapData } from "@/lib/api";
-import { categoryLabel } from "@/lib/strings";
+import { categoryLabel, statusInfo } from "@/lib/strings";
 
 const CITY_CENTER: [number, number] = [9.02, 38.76];
+
+function FitBounds({ data }: { data: MapData | null }) {
+  const map = useMap();
+  useEffect(() => {
+    const points: Array<[number, number]> = [
+      ...(data?.reports ?? []).map((r) => [r.lat, r.lon] as [number, number]),
+      ...(data?.complaints ?? [])
+        .filter((c) => c.lat != null && c.lon != null)
+        .map((c) => [c.lat!, c.lon!] as [number, number]),
+    ];
+    if (points.length === 0) return;
+    if (points.length === 1) {
+      map.setView(points[0], 14);
+      return;
+    }
+    map.fitBounds(points, { padding: [40, 40], maxZoom: 15 });
+  }, [data, map]);
+  return null;
+}
 
 export function CityMap({ data }: { data: MapData | null }) {
   return (
@@ -17,6 +37,7 @@ export function CityMap({ data }: { data: MapData | null }) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
       />
+      <FitBounds data={data} />
       {(data?.reports ?? []).map((r) => (
         <CircleMarker
           key={r.report_id}
@@ -31,7 +52,7 @@ export function CityMap({ data }: { data: MapData | null }) {
         >
           <Tooltip>
             <span className="text-xs">
-              {categoryLabel(r.category)} · sev {r.severity} · {r.status}
+              {categoryLabel(r.category)} · sev {r.severity} · {statusInfo(r.status).label}
             </span>
           </Tooltip>
         </CircleMarker>
@@ -47,9 +68,11 @@ export function CityMap({ data }: { data: MapData | null }) {
               color:
                 c.status.startsWith("escalated")
                   ? "#e0654a"
-                  : c.status === "filed"
+                  : c.status === "resolved"
                     ? "#69c98f"
-                    : "#f2a93b",
+                    : c.status === "filed" || c.status === "acknowledged"
+                      ? "#69c98f"
+                      : "#f2a93b",
               weight: 1.5,
               fillOpacity: 0,
               dashArray: "3 4",
@@ -57,7 +80,8 @@ export function CityMap({ data }: { data: MapData | null }) {
           >
             <Tooltip>
               <span className="text-xs">
-                {c.category ? categoryLabel(c.category) : "complaint"} · {c.status}
+                {c.category ? categoryLabel(c.category) : "complaint"} ·{" "}
+                {statusInfo(c.status).label}
               </span>
             </Tooltip>
           </CircleMarker>

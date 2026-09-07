@@ -217,6 +217,12 @@ def decision_card_from_interrupt(agent_name: str, interrupt: Any, run_id: str | 
     store = get_store()
     complaint = store.get_complaint(draft.get("complaint_id", ""))
     ward = complaint.ward if complaint is not None else draft.get("ward", "")
+    reporters = []
+    if complaint is not None:
+        for rid in complaint.report_refs:
+            report = store.get_report(rid)
+            if report is not None:
+                reporters.append(report.reporter)
     card = store.add_decision_card(
         DecisionCard(
             complaint_draft=draft,
@@ -227,6 +233,7 @@ def decision_card_from_interrupt(agent_name: str, interrupt: Any, run_id: str | 
                 "ward": ward,
                 "city": get_filing_city(),
                 "run_id": run_id,
+                "reporters": reporters,
             },
         )
     )

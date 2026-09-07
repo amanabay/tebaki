@@ -43,16 +43,52 @@ export function eventCopy(kind: string, e: Record<string, unknown>): string {
       return `Filing failed`;
     case "escalated":
       return `Escalated to level ${String(e.level)}`;
+    case "resolved":
+      return `City resolved ticket ${String(e.ticket_id ?? "—")}`;
     case "checked":
       return `Ticket checked — ${String(e.status ?? "")}`;
     case "chase_start":
       return `Chase round started`;
     case "chase_end":
-      return `Chase done — ${String(e.checked)} checked, ${String(e.escalated)} escalated`;
+      return `Chase done — ${String(e.checked)} checked, ${String(e.escalated)} escalated, ${String(e.resolved ?? 0)} resolved`;
     case "cycle_end":
       return `Cycle ended`;
     default:
       return kind;
+  }
+}
+
+/** "Selam + 3 others" style summary of who reported a complaint. */
+export function reportersLabel(names: string[] | undefined): string {
+  if (!names || names.length === 0) return "—";
+  const real = names.filter((n) => n && n !== "anonymous");
+  const anon = names.length - real.length;
+  if (real.length === 0) {
+    return `${anon} resident${anon === 1 ? "" : "s"}`;
+  }
+  const rest = real.length - 1 + anon;
+  if (rest === 0) return real[0];
+  return `${real[0]} + ${rest} other${rest === 1 ? "" : "s"}`;
+}
+
+const CITY_TZ: Record<string, string> = {
+  "Addis Ababa": "Africa/Addis_Ababa",
+  "Sandbox City": "Africa/Addis_Ababa",
+  Chicago: "America/Chicago",
+};
+
+/** Clock string in the city's timezone (falls back to browser-local). */
+export function cityClock(iso: string, city: string): string {
+  const tz = CITY_TZ[city];
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      ...(tz ? { timeZone: tz } : {}),
+    }).format(new Date(iso));
+  } catch {
+    const d = new Date(iso);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   }
 }
 
