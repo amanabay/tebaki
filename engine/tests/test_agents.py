@@ -24,8 +24,8 @@ def test_auto_approve_sandbox_files_end_to_end(portal_client, three_reports) -> 
     assert len(filed_events) == 2
     assert all(e["ticket_id"].startswith("SBX-") for e in filed_events)
     assert len(store.filed_complaints()) == 2
-    assert all(c.status == "approved" for c in store.decision_cards.values())
-    assert all(r.status == "filed" for r in store.reports.values())
+    assert all(c.status == "approved" for c in store.list_cards())
+    assert all(r.status == "filed" for r in store.list_reports())
 
 
 def test_cycle_pauses_on_decision_cards(portal_client, three_reports) -> None:
@@ -34,10 +34,10 @@ def test_cycle_pauses_on_decision_cards(portal_client, three_reports) -> None:
 
     cards = store.pending_cards()
     assert len(cards) == 2
-    assert all(c.status == "awaiting_approval" for c in store.complaints.values())
+    assert all(c.status == "awaiting_approval" for c in store.list_complaints())
     assert store.filed_complaints() == []
     # reports passed the graph phase (triaged -> clustered) but nothing filed yet
-    assert all(r.status == "clustered" for r in store.reports.values())
+    assert all(r.status == "clustered" for r in store.list_reports())
 
 
 def test_resume_approve_files_with_ticket(portal_client, three_reports) -> None:
@@ -50,7 +50,7 @@ def test_resume_approve_files_with_ticket(portal_client, three_reports) -> None:
     assert outcome["ticket_id"].startswith("SBX-")
     assert outcome["stop_reason"] == "end_turn"
 
-    complaint = store.complaints[outcome["complaint_id"]]
+    complaint = store.get_complaint(outcome["complaint_id"])
     assert complaint.status == "filed"
     assert card.status == "approved"
     # the other card is still pending
@@ -65,7 +65,7 @@ def test_resume_drop_cancels_filing(portal_client, three_reports) -> None:
     outcome = resolve_decision(card.card_id, "drop")
     assert outcome["status"] == "dropped"
     assert outcome["ticket_id"] is None
-    complaint = store.complaints[outcome["complaint_id"]]
+    complaint = store.get_complaint(outcome["complaint_id"])
     assert complaint.status == "dropped"
     assert card.status == "dropped"
     # nothing was filed for this complaint: no ticket in the portal for it
@@ -115,8 +115,8 @@ def test_triage_rejects_empty_notes(portal_client, clean_store) -> None:
     summary = run_nightly_cycle("sandbox")  # auto-approve
     triage_done = next(e for e in summary["events"] if e["kind"] == "triage_done")
     assert triage_done["rejected"] == 1 and triage_done["accepted"] == 1
-    assert store.reports[empty.report_id].status == "rejected"
-    assert store.reports[good.report_id].status == "filed"
+    assert store.get_report(empty.report_id).status == "rejected"
+    assert store.get_report(good.report_id).status == "filed"
 
 
 def test_graph_conditional_edge_skips_stages_when_all_rejected(portal_client, clean_store) -> None:
@@ -129,19 +129,19 @@ def test_graph_conditional_edge_skips_stages_when_all_rejected(portal_client, cl
     triage_done = next(e for e in summary["events"] if e["kind"] == "triage_done")
     assert triage_done["graph_nodes"] == ["triage"]  # cluster/drafter skipped
     assert summary["events"][-1]["outcome"] == "all_rejected"
-    assert store.complaints == {}
+    assert store.list_complaints() == []
 
 
 def test_amharic_note_detected(portal_client, clean_store) -> None:
     store = clean_store
     am = store.add_report(Report(category="waste", lat=9.01, lon=38.76, note="ቆሻሻ ለብዙ ቀናት አልተሰበሰበም"))
     run_nightly_cycle("sandbox")
-    assert store.reports[am.report_id].language == "am"
-    assert store.reports[am.report_id].status == "filed"
+    assert store.get_report(am.report_id).language == "am"
+    assert store.get_report(am.report_id).status == "filed"
 
 
 def test_severity_from_notes(portal_client, clean_store) -> None:
     store = clean_store
     hazard = store.add_report(Report(category="drain", lat=9.01, lon=38.76, note="blocked drain causing flood hazard"))
     run_nightly_cycle("sandbox")
-    assert store.reports[hazard.report_id].severity == 5
+    assert store.get_report(hazard.report_id).severity == 5

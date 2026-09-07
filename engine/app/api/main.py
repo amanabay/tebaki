@@ -58,7 +58,7 @@ def create_app() -> FastAPI:
 
     @app.get("/reports")
     def list_reports(limit: int = 100) -> list[dict[str, Any]]:
-        reports = sorted(get_store().reports.values(), key=lambda r: r.created_at, reverse=True)
+        reports = sorted(get_store().list_reports(), key=lambda r: r.created_at, reverse=True)
         return [r.to_dict() for r in reports[:limit]]
 
     # --- decision queue ------------------------------------------------------------
@@ -87,7 +87,7 @@ def create_app() -> FastAPI:
 
     @app.get("/public/ledger")
     def ledger(limit: int = 200) -> list[dict[str, Any]]:
-        complaints = sorted(get_store().complaints.values(), key=lambda c: c.created_at, reverse=True)
+        complaints = sorted(get_store().list_complaints(), key=lambda c: c.created_at, reverse=True)
         return [
             {
                 "complaint_id": c.complaint_id,
@@ -108,7 +108,7 @@ def create_app() -> FastAPI:
     @app.get("/public/scoreboard")
     def scoreboard() -> list[dict[str, Any]]:
         rows: dict[str, dict[str, int]] = {}
-        for complaint in get_store().complaints.values():
+        for complaint in get_store().list_complaints():
             row = rows.setdefault(
                 complaint.ward,
                 {"ward": complaint.ward, "complaints": 0, "filed": 0, "resolved": 0, "escalated": 0},
@@ -123,7 +123,7 @@ def create_app() -> FastAPI:
 
     @app.get("/public/activity")
     def activity(limit: int = 200) -> list[dict[str, Any]]:
-        runs = sorted(get_store().agent_runs.values(), key=lambda r: r.started_at, reverse=True)
+        runs = sorted(get_store().list_runs(), key=lambda r: r.started_at, reverse=True)
         events: list[dict[str, Any]] = []
         for run in runs:
             for event in run.events:
@@ -142,7 +142,7 @@ def create_app() -> FastAPI:
                 "status": r.status,
                 "severity": r.severity,
             }
-            for r in store.reports.values()
+            for r in store.list_reports()
         ]
         complaints = [
             {
@@ -152,7 +152,7 @@ def create_app() -> FastAPI:
                 "status": c.status,
                 "category": (c.draft_payload or {}).get("category"),
             }
-            for c in store.complaints.values()
+            for c in store.list_complaints()
         ]
         return {"reports": reports, "complaints": complaints}
 

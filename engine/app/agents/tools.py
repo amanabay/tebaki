@@ -30,17 +30,18 @@ def submit_triage(results: list[dict[str, Any]]) -> str:
     store = get_store()
     accepted = 0
     for r in results:
-        report = store.reports.get(r["report_id"])
+        report = store.get_report(r["report_id"])
         if report is None:
             return f"error: unknown report_id {r['report_id']}"
         if not r.get("valid", False):
-            store.update_report_status(r["report_id"], "rejected")
+            report.status = "rejected"
         else:
             report.category = r["category"]
             report.severity = int(r.get("severity", 3))
             report.language = r.get("language", "en")
-            store.update_report_status(r["report_id"], "triaged")
+            report.status = "triaged"
             accepted += 1
+        store.save_report(report)
     return f"triaged {accepted}/{len(results)} reports accepted"
 
 
@@ -58,7 +59,7 @@ def cluster_triaged_reports() -> str:
     from app.geo import GeoPoint, cluster_reports, load_boundary_features, map_ward
 
     store = get_store()
-    accepted = [r for r in store.reports.values() if r.status == "triaged"]
+    accepted = [r for r in store.list_reports() if r.status == "triaged"]
     if not accepted:
         return _json.dumps({"clusters": [], "regulation": None, "city": get_filing_context().city})
 
@@ -101,16 +102,15 @@ def submit_complaint_drafts(drafts: list[dict[str, Any]]) -> str:
     store = get_store()
     staged: list[str] = []
     for draft in drafts:
-        complaint = store.add_complaint(
-            Complaint(
-                report_refs=draft["report_refs"],
-                ward=draft["ward"],
-                draft_text=draft["text"],
-                status="awaiting_approval",
-                draft_payload=draft,
-            )
+        complaint = Complaint(
+            report_refs=draft["report_refs"],
+            ward=draft["ward"],
+            draft_text=draft["text"],
+            status="awaiting_approval",
         )
         draft["complaint_id"] = complaint.complaint_id
+        complaint.draft_payload = draft
+        store.add_complaint(complaint)
         staged.append(complaint.complaint_id)
     return f"staged {len(staged)} complaint drafts: {', '.join(staged)}"
 
@@ -127,7 +127,7 @@ def submit_chase_results(results: list[dict[str, Any]]) -> str:
     store = get_store()
     escalated = 0
     for r in results:
-        complaint = store.complaints.get(r["complaint_id"])
+        complaint = store.get_complaint(r["complaint_id"])
         if complaint is None:
             return f"error: unknown complaint_id {r['complaint_id']}"
         complaint.ticket_status = r.get("ticket_status")
@@ -142,7 +142,7 @@ def submit_chase_results(results: list[dict[str, Any]]) -> str:
             filing = get_filing_context()
             rungs = filing.escalation_rungs or []
             rung = rungs[min(level - 1, len(rungs) - 1)] if rungs else {}
-            complaint.escalation_log = getattr(complaint, "escalation_log", []) + [
+            complaint.escalation_log = complaint.escalation_log + [
                 {
                     "level": level,
                     "target": rung.get("target", "city"),
@@ -151,6 +151,7 @@ def submit_chase_results(results: list[dict[str, Any]]) -> str:
                     "at": _now_iso(),
                 }
             ]
+        store.save_complaint(complaint)
     return f"chased {len(results)} complaints, escalated {escalated}"
 
 
@@ -189,7 +190,9 @@ def file_complaint(
         {"category": category, "lat": lat, "lon": lon, "text": text, "subject": subject, "cite": cite}
     )
     store = get_store()
-    complaint = store.complaints[complaint_id]
+    complaint = store.get_complaint(complaint_id)
+    if complaint is None:
+        return f"error: unknown complaint_id {complaint_id}"
     if result.ok:
         from datetime import datetime, timedelta
 
@@ -202,8 +205,10 @@ def file_complaint(
         complaint.resolve_deadline = (filed_at + timedelta(days=resolve_days)).isoformat()
         complaint.ticket_id = result.ticket_id
         complaint.channel = result.channel
+        store.save_complaint(complaint)
         for rid in complaint.report_refs:
             store.update_report_status(rid, "filed")
         return f"filed {complaint_id}: ticket {result.ticket_id or 'no-ticket-id'} via {result.channel}"
     complaint.status = "filing_failed"
+    store.save_complaint(complaint)
     return f"filing failed for {complaint_id}: {result.detail}"

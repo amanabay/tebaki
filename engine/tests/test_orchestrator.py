@@ -16,7 +16,7 @@ def test_nightly_cycle_files_and_produces_tickets(portal_client, three_reports) 
 
     store = get_store()
     assert len(store.filed_complaints()) == 2
-    assert all(r.status == "filed" for r in store.reports.values())
+    assert all(r.status == "filed" for r in store.list_reports())
 
 
 def test_nightly_cycle_empty_is_noop(portal_client, clean_store) -> None:

@@ -74,8 +74,8 @@ def run_nightly_cycle(
     from app.agents.nightly_graph import run_graph_phase
 
     graph_summary = run_graph_phase({"reports": [r.to_dict() for r in new_reports]})
-    accepted = [r for r in store.reports.values() if r.status in ("triaged", "clustered")]
-    rejected = [r for r in store.reports.values() if r.status == "rejected"]
+    accepted = [r for r in store.list_reports() if r.status in ("triaged", "clustered")]
+    rejected = [r for r in store.list_reports() if r.status == "rejected"]
     run.add_event(
         "triage_done",
         accepted=len(accepted),
@@ -87,25 +87,27 @@ def run_nightly_cycle(
         run.add_event("cycle_end", outcome="all_rejected")
         return run.to_dict()
 
-    clustered = [r for r in store.reports.values() if r.status == "clustered"]
+    clustered = [r for r in store.list_reports() if r.status == "clustered"]
     run.add_event("cluster_done", clustered=len(clustered))
 
-    drafts = [c for c in store.complaints.values() if c.status == "awaiting_approval"]
+    drafts = [c for c in store.list_complaints() if c.status == "awaiting_approval"]
     run.add_event("drafts_ready", complaints=len(drafts))
 
     # 4) FILE — filer agent per complaint, interrupt-gated
     pending: list[str] = []
     filed_count = dropped_count = failed_count = 0
-    for complaint in drafts:
+    for draft_complaint in drafts:
         filer = filer_agent()
-        result = filer(json.dumps({"draft": complaint.draft_payload}))
+        result = filer(json.dumps({"draft": draft_complaint.draft_payload}))
         if result.interrupts:
             interrupt = result.interrupts[0]
-            card = decision_card_from_interrupt("tebaki-filer", interrupt)
+            card = decision_card_from_interrupt("tebaki-filer", interrupt, run_id=run.run_id)
             pause_filing(card.card_id, filer, interrupt.id)
-            run.add_event("decision_card", card_id=card.card_id, complaint_id=complaint.complaint_id)
+            run.add_event("decision_card", card_id=card.card_id, complaint_id=draft_complaint.complaint_id)
             if auto_approve:
                 resolve_decision(card.card_id, "approve")
+        # the filer tool persisted state; re-fetch for the fresh status
+        complaint = store.get_complaint(draft_complaint.complaint_id) or draft_complaint
         if complaint.status == "filed":
             filed_count += 1
             run.add_event(
@@ -145,9 +147,9 @@ def resolve_decision(
     if action not in _RESOLUTIONS:
         raise ValueError(f"invalid action {action!r}: approve|edit|drop")
     store = get_store()
-    if card_id not in store.decision_cards:
+    card = store.get_card(card_id)
+    if card is None:
         raise ValueError(f"unknown decision card {card_id!r}")
-    card = store.decision_cards[card_id]
     if card.status != "pending":
         raise ValueError(f"card {card_id} already resolved ({card.status})")
 
@@ -157,14 +159,36 @@ def resolve_decision(
         [{"interruptResponse": {"interruptId": paused.interrupt_id, "response": response}}]
     )
 
-    complaint = store.complaints[card.complaint_draft["complaint_id"]]
+    complaint = store.get_complaint(card.complaint_draft["complaint_id"])
+    if complaint is None:
+        raise ValueError(f"unknown complaint {card.complaint_draft['complaint_id']!r}")
     if action == "drop" and complaint.status == "awaiting_approval":
         complaint.status = "dropped"
+    store.save_complaint(complaint)
     store.resolve_card(
         card_id,
         _RESOLUTIONS[action],
         response={"action": action, "fields": fields} if fields else {"action": action},
     )
+
+    # log the outcome to the run that created the card, but only when the
+    # cycle has already returned (pause mode). During an in-cycle
+    # auto-approve the filing loop logs the event itself.
+    run_id = card.context.get("run_id")
+    if run_id:
+        run = store.get_run(run_id)
+        if run is not None and run.finished_at is not None:
+            event = "filed" if complaint.status == "filed" else "dropped"
+            run.add_event(
+                event,
+                card_id=card_id,
+                complaint_id=complaint.complaint_id,
+                ticket_id=complaint.ticket_id,
+                channel=complaint.channel,
+                action=action,
+            )
+            store.save_run(run)
+
     return {
         "card_id": card_id,
         "action": action,
@@ -203,7 +227,7 @@ def run_chase(city_pack_name: str | None = None) -> dict[str, Any]:
         pack=pack,
     )
 
-    filed = [c for c in store.complaints.values() if c.ticket_id and c.status.startswith(("filed", "escalated"))]
+    filed = store.filed_complaints()
     if not filed:
         store.finish_run(run)
         run.add_event("chase_end", outcome="no_filed_complaints")
@@ -237,22 +261,22 @@ def run_chase(city_pack_name: str | None = None) -> dict[str, Any]:
     chaser = chaser_agent()
     chaser(_json.dumps({"complaints": chase_payload}))
 
-    escalated_now = [
-        c
-        for c in store.complaints.values()
-        if c.escalation_level > pre_levels.get(c.complaint_id, 0)
-    ]
+    # Re-fetch: the chaser tool mutated and persisted complaints; local
+    # objects above may be stale copies (DynamoDB store).
+    fresh = {c.complaint_id: c for c in store.list_complaints()}
+    escalated_now = {c.complaint_id for c in fresh.values() if c.escalation_level > pre_levels.get(c.complaint_id, 0)}
     for complaint in filed:
-        if complaint.complaint_id in {c.complaint_id for c in escalated_now}:
+        current = fresh.get(complaint.complaint_id, complaint)
+        if current.complaint_id in escalated_now:
             run.add_event(
                 "escalated",
-                complaint_id=complaint.complaint_id,
-                level=complaint.escalation_level,
-                ticket_status=complaint.ticket_status,
+                complaint_id=current.complaint_id,
+                level=current.escalation_level,
+                ticket_status=current.ticket_status,
             )
         else:
             run.add_event(
-                "checked", complaint_id=complaint.complaint_id, status=complaint.ticket_status
+                "checked", complaint_id=current.complaint_id, status=current.ticket_status
             )
 
     store.finish_run(run)

@@ -20,11 +20,11 @@ from app.store import get_store
 
 
 def _has_triaged_reports(state: object) -> bool:
-    return any(r.status == "triaged" for r in get_store().reports.values())
+    return any(r.status == "triaged" for r in get_store().list_reports())
 
 
 def _has_clusters(state: object) -> bool:
-    return any(r.status == "clustered" for r in get_store().reports.values())
+    return any(r.status == "clustered" for r in get_store().list_reports())
 
 
 def build_nightly_graph() -> object:

@@ -165,12 +165,12 @@ def filing_approval_hook(event: BeforeToolCallEvent) -> None:
     event.cancel_tool = f"filing not approved (human said {action!r})"
 
 
-def decision_card_from_interrupt(agent_name: str, interrupt: Any) -> DecisionCard:
+def decision_card_from_interrupt(agent_name: str, interrupt: Any, run_id: str | None = None) -> DecisionCard:
     """Create a store decision card from a pending filing interrupt."""
     reason = interrupt.reason or {}
     draft = reason.get("draft", {})
     store = get_store()
-    complaint = store.complaints.get(draft.get("complaint_id", ""))
+    complaint = store.get_complaint(draft.get("complaint_id", ""))
     ward = complaint.ward if complaint is not None else draft.get("ward", "")
     card = store.add_decision_card(
         DecisionCard(
@@ -181,6 +181,7 @@ def decision_card_from_interrupt(agent_name: str, interrupt: Any) -> DecisionCar
                 "interrupt_name": interrupt.name,
                 "ward": ward,
                 "city": get_filing_city(),
+                "run_id": run_id,
             },
         )
     )
