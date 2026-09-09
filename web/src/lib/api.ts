@@ -142,4 +142,50 @@ export const api = {
       body: JSON.stringify(autoApprove === null ? {} : { auto_approve: autoApprove }),
     }),
   runChase: () => json<Record<string, unknown>>("/admin/chase", { method: "POST" }),
+  caseFile: (complaintId: string) => json<CaseFile>(`/public/complaints/${complaintId}`),
+  setComplaintStatus: (complaintId: string, status: "acknowledged" | "resolved", note: string) =>
+    json<{ complaint_id: string; status: string; ticket_status: string }>(
+      `/admin/complaints/${complaintId}/status`,
+      { method: "POST", body: JSON.stringify({ status, note }) },
+    ),
 };
+
+export interface CaseFile {
+  complaint_id: string;
+  ward: string;
+  status: string;
+  ticket_id: string | null;
+  channel: string;
+  filed_at: string | null;
+  ack_deadline: string | null;
+  resolve_deadline: string | null;
+  ticket_status: string | null;
+  category: string | null;
+  subject: string | null;
+  text: string | null;
+  cite: string | null;
+  reporters: string[];
+  plus_ones: number;
+  reports: Array<{
+    report_id: string;
+    reporter: string;
+    note: string;
+    lat: number;
+    lon: number;
+    severity: number;
+    language: string;
+    plus_ones: number;
+    created_at: string;
+    status: string;
+  }>;
+  escalation_log: Array<{
+    level: number | null;
+    target: string | null;
+    address: string | null;
+    subject: string | null;
+    text: string | null;
+    at: string | null;
+    delivered: boolean | null;
+  }>;
+  created_at: string;
+}

@@ -5,57 +5,60 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Tebaki — "Sodium & Ink" design tokens.
- * The guardian works at night: warm ink surfaces, sodium-streetlight amber,
- * paper-white text. One theme: night. Civic-document textures elsewhere.
+ * Tebaki — "The Civic Archive" design tokens.
+ * Light: paper archive — warm paper, sepia ink, archival red/green stamps,
+ * amber accents. Dark: the archive by lamplight — near-black warm brown
+ * with sodium amber.
  */
 
 :root {
-  /* ink surfaces */
-  --background: oklch(0.165 0.008 85);
-  --surface-1: oklch(0.205 0.009 85);
-  --surface-2: oklch(0.245 0.01 84);
+  color-scheme: light;
 
-  /* text */
-  --foreground: oklch(0.945 0.011 90);
-  --muted-foreground: oklch(0.68 0.012 88);
+  /* paper surfaces */
+  --background: oklch(0.972 0.011 92);
+  --surface-1: oklch(0.99 0.004 92);
+  --surface-2: oklch(0.945 0.012 90);
 
-  /* sodium amber — the only accent */
-  --primary: oklch(0.78 0.14 75);
-  --primary-foreground: oklch(0.185 0.01 85);
-  --secondary: oklch(0.245 0.01 84);
-  --secondary-foreground: oklch(0.945 0.011 90);
-  --muted: oklch(0.225 0.009 85);
-  --muted-foreground-2: oklch(0.6 0.012 88);
-  --accent: oklch(0.26 0.014 82);
-  --accent-foreground: oklch(0.945 0.011 90);
-  --destructive: oklch(0.66 0.19 32);
+  /* sepia ink text */
+  --foreground: oklch(0.27 0.02 60);
+  --muted-foreground: oklch(0.5 0.02 60);
 
-  --border: oklch(0.3 0.012 84);
-  --input: oklch(0.3 0.012 84);
-  --ring: oklch(0.78 0.14 75);
+  /* archival amber — the only accent */
+  --primary: oklch(0.55 0.12 70);
+  --primary-foreground: oklch(0.99 0.004 92);
+  --secondary: oklch(0.945 0.012 90);
+  --secondary-foreground: oklch(0.27 0.02 60);
+  --muted: oklch(0.945 0.012 90);
+  --accent: oklch(0.92 0.04 85);
+  --accent-foreground: oklch(0.32 0.05 60);
+  --destructive: oklch(0.5 0.19 30);
 
-  /* status */
-  --status-filed: oklch(0.72 0.13 145);
-  --status-pending: oklch(0.78 0.14 75);
-  --status-escalated: oklch(0.66 0.19 32);
-  --status-dropped: oklch(0.55 0.012 88);
+  --border: oklch(0.86 0.015 80);
+  --input: oklch(0.86 0.015 80);
+  --ring: oklch(0.55 0.12 70);
+
+  /* status — archival ink stamps */
+  --status-filed: oklch(0.44 0.11 150);
+  --status-pending: oklch(0.55 0.12 70);
+  --status-escalated: oklch(0.47 0.16 30);
+  --status-dropped: oklch(0.68 0.012 88);
 
   --radius: 0.375rem;
 
   --font-sans: "Public Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Spectral", "Public Sans", Georgia, serif;
   --font-ethiopic: "Noto Sans Ethiopic", "Public Sans", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  /* shadcn structural vars mapped onto the same night palette */
+  /* shadcn structural vars mapped onto the archive palette */
   --card: var(--surface-1);
   --card-foreground: var(--foreground);
-  --popover: var(--surface-2);
+  --popover: var(--surface-1);
   --popover-foreground: var(--foreground);
   --chart-1: var(--primary);
   --chart-2: var(--status-filed);
   --chart-3: var(--status-escalated);
-  --chart-4: var(--muted-foreground-2);
+  --chart-4: var(--muted-foreground);
   --chart-5: var(--border);
   --sidebar: var(--surface-1);
   --sidebar-foreground: var(--foreground);
@@ -68,38 +71,54 @@
 }
 
 .dark {
-  /* the app is night-first: .dark mirrors :root */
-  --background: oklch(0.165 0.008 85);
-  --foreground: oklch(0.945 0.011 90);
-  --card: oklch(0.205 0.009 85);
-  --card-foreground: oklch(0.945 0.011 90);
-  --popover: oklch(0.245 0.01 84);
-  --popover-foreground: oklch(0.945 0.011 90);
-  --primary: oklch(0.78 0.14 75);
-  --primary-foreground: oklch(0.185 0.01 85);
-  --secondary: oklch(0.245 0.01 84);
-  --secondary-foreground: oklch(0.945 0.011 90);
-  --muted: oklch(0.225 0.009 85);
-  --muted-foreground: oklch(0.68 0.012 88);
-  --accent: oklch(0.26 0.014 82);
-  --accent-foreground: oklch(0.945 0.011 90);
-  --destructive: oklch(0.66 0.19 32);
-  --border: oklch(0.3 0.012 84);
-  --input: oklch(0.3 0.012 84);
-  --ring: oklch(0.78 0.14 75);
-  --chart-1: oklch(0.78 0.14 75);
-  --chart-2: oklch(0.72 0.13 145);
-  --chart-3: oklch(0.66 0.19 32);
-  --chart-4: oklch(0.6 0.012 88);
-  --chart-5: oklch(0.3 0.012 84);
-  --sidebar: oklch(0.205 0.009 85);
-  --sidebar-foreground: oklch(0.945 0.011 90);
-  --sidebar-primary: oklch(0.78 0.14 75);
-  --sidebar-primary-foreground: oklch(0.185 0.01 85);
-  --sidebar-accent: oklch(0.26 0.014 82);
-  --sidebar-accent-foreground: oklch(0.945 0.011 90);
-  --sidebar-border: oklch(0.3 0.012 84);
-  --sidebar-ring: oklch(0.78 0.14 75);
+  color-scheme: dark;
+
+  /* lamplight surfaces — near-black warm brown */
+  --background: oklch(0.155 0.012 60);
+  --surface-1: oklch(0.195 0.013 60);
+  --surface-2: oklch(0.24 0.014 62);
+
+  /* paper text by lamplight */
+  --foreground: oklch(0.93 0.012 90);
+  --muted-foreground: oklch(0.68 0.014 80);
+
+  /* sodium amber */
+  --primary: oklch(0.78 0.15 72);
+  --primary-foreground: oklch(0.185 0.01 60);
+  --secondary: oklch(0.24 0.014 62);
+  --secondary-foreground: oklch(0.93 0.012 90);
+  --muted: oklch(0.24 0.014 62);
+  --accent: oklch(0.27 0.02 62);
+  --accent-foreground: oklch(0.93 0.012 90);
+  --destructive: oklch(0.66 0.19 30);
+
+  --border: oklch(0.31 0.014 62);
+  --input: oklch(0.31 0.014 62);
+  --ring: oklch(0.78 0.15 72);
+
+  /* status — lamplight inks */
+  --status-filed: oklch(0.72 0.13 145);
+  --status-pending: oklch(0.78 0.14 72);
+  --status-escalated: oklch(0.66 0.19 30);
+  --status-dropped: oklch(0.6 0.012 80);
+
+  --card: var(--surface-1);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface-2);
+  --popover-foreground: var(--foreground);
+  --chart-1: var(--primary);
+  --chart-2: var(--status-filed);
+  --chart-3: var(--status-escalated);
+  --chart-4: var(--muted-foreground);
+  --chart-5: var(--border);
+  --sidebar: var(--surface-1);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
 }
 
 @theme inline {
@@ -116,7 +135,7 @@
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground-2);
+  --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -129,9 +148,10 @@
   --color-status-dropped: var(--status-dropped);
 
   --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
   --font-ethiopic: var(--font-ethiopic);
   --font-mono: var(--font-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-serif);
 
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
@@ -165,7 +185,6 @@
   }
   body {
     @apply bg-background font-sans text-foreground antialiased;
-    font-feature-settings: "tnum" 1;
   }
   ::selection {
     background: var(--primary);
@@ -177,8 +196,11 @@
   .font-ethiopic {
     font-family: var(--font-ethiopic);
   }
+  .font-serif {
+    font-family: var(--font-serif);
+  }
   .micro-label {
-    @apply text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase;
+    @apply text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase;
   }
   .num {
     font-family: var(--font-mono);
@@ -193,9 +215,15 @@
     );
     height: 1px;
   }
+  /* the archive double rule (heading underline) */
+  .rule-double {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    height: 3px;
+  }
 }
 
-/* --- the FILED stamp --------------------------------------------------------- */
+/* --- the stamp (archival ink) -------------------------------------------------- */
 .stamp {
   font-family: var(--font-mono);
   font-weight: 700;
@@ -225,17 +253,83 @@
 .stamp-animate {
   animation: stamp-in 380ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
+@media (prefers-reduced-motion: reduce) {
+  .stamp-animate,
+  .animate-ping {
+    animation: none !important;
+  }
+}
 
-/* leaflet on dark */
+/* skeleton shimmer — archival paper loading state */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--surface-1) 100%, transparent) 0%,
+    color-mix(in oklch, var(--surface-2) 100%, transparent) 50%,
+    color-mix(in oklch, var(--surface-1) 100%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: var(--radius-md);
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none !important;
+    background: var(--surface-2);
+  }
+}
+
+/* --- leaflet, archive-skinned -------------------------------------------------- */
 .leaflet-container {
   background: var(--background);
   font-family: var(--font-sans);
 }
 .leaflet-control-attribution {
-  background: oklch(0.165 0.008 85 / 0.7) !important;
-  color: var(--muted-foreground-2) !important;
+  background: color-mix(in oklch, var(--background) 70%, transparent) !important;
+  color: var(--muted-foreground) !important;
   font-size: 9px !important;
 }
 .leaflet-control-attribution a {
-  color: var(--muted-foreground-2) !important;
+  color: var(--muted-foreground) !important;
+}
+.leaflet-bar a {
+  background: var(--surface-1) !important;
+  color: var(--foreground) !important;
+  border-color: var(--border) !important;
+}
+.leaflet-bar a:hover {
+  background: var(--surface-2) !important;
+}
+/* popups + tooltips on theme */
+.leaflet-popup-content-wrapper,
+.leaflet-tooltip {
+  background: var(--surface-1) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: 0 4px 16px oklch(0 0 0 / 0.12) !important;
+}
+.leaflet-popup-tip {
+  background: var(--surface-1) !important;
+  border: 1px solid var(--border) !important;
+}
+.leaflet-tooltip-top:before {
+  border-top-color: var(--border) !important;
+}
+.leaflet-tooltip-bottom:before {
+  border-bottom-color: var(--border) !important;
+}
+.leaflet-tooltip-left:before {
+  border-left-color: var(--border) !important;
+}
+.leaflet-tooltip-right:before {
+  border-right-color: var(--border) !important;
 }

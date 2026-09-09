@@ -258,4 +258,11 @@ def decision_card_from_interrupt(agent_name: str, interrupt: Any, run_id: str | 
     )
     if complaint is not None:
         complaint.status = "awaiting_approval"
+        # the redacted draft is what the approver sees and what files —
+        # sync the stored draft so the ledger, dossier, and card all
+        # display the redacted text
+        if privacy_flags:
+            complaint.draft_payload = draft
+            complaint.draft_text = str(draft.get("text", complaint.draft_text))
+        store.save_complaint(complaint)
     return card

@@ -2,7 +2,7 @@
 name = "tebaki-engine"
 version = "0.1.0"
 description = "Tebaki — the city's guardian: Strands-powered civic complaint engine"
-readme = "../README.md"
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "strands-agents>=0.1",

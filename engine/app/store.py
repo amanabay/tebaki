@@ -158,6 +158,8 @@ class Complaint:
         ticket_status: str | None = None,
         last_chased_at: str | None = None,
         escalation_log: list[dict[str, Any]] | None = None,
+        acknowledged_note: str | None = None,
+        resolved_note: str | None = None,
         created_at: str | None = None,
     ) -> None:
         self.complaint_id = complaint_id or f"C-{uuid4().hex[:8].upper()}"
@@ -177,6 +179,8 @@ class Complaint:
         self.ticket_status = ticket_status
         self.last_chased_at = last_chased_at
         self.escalation_log = escalation_log or []
+        self.acknowledged_note = acknowledged_note
+        self.resolved_note = resolved_note
         self.created_at = created_at or _now()
 
     def to_dict(self) -> dict[str, Any]:
@@ -196,6 +200,8 @@ class Complaint:
             "ticket_status": self.ticket_status,
             "last_chased_at": self.last_chased_at,
             "escalation_log": self.escalation_log,
+            "acknowledged_note": self.acknowledged_note,
+            "resolved_note": self.resolved_note,
             "created_at": self.created_at,
         }
 
@@ -217,6 +223,8 @@ class Complaint:
             ticket_status=data.get("ticket_status"),
             last_chased_at=data.get("last_chased_at"),
             escalation_log=data.get("escalation_log", []),
+            acknowledged_note=data.get("acknowledged_note"),
+            resolved_note=data.get("resolved_note"),
             created_at=data.get("created_at"),
         )
 

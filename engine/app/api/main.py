@@ -165,6 +165,40 @@ def create_app() -> FastAPI:
             )
         return rows
 
+    @app.get("/public/complaints/{complaint_id}")
+    def case_file(complaint_id: str) -> dict[str, Any]:
+        """The case dossier: one complaint's full journey, assembled."""
+        store = get_store()
+        complaint = store.get_complaint(complaint_id)
+        if complaint is None:
+            raise HTTPException(status_code=404, detail=f"unknown complaint {complaint_id}")
+        reports = []
+        for rid in complaint.report_refs:
+            report = store.get_report(rid)
+            if report is not None:
+                reports.append(report.to_dict())
+        draft = complaint.draft_payload or {}
+        return {
+            "complaint_id": complaint.complaint_id,
+            "ward": complaint.ward,
+            "status": complaint.status,
+            "ticket_id": complaint.ticket_id,
+            "channel": complaint.channel,
+            "filed_at": complaint.filed_at,
+            "ack_deadline": complaint.ack_deadline,
+            "resolve_deadline": complaint.resolve_deadline,
+            "ticket_status": complaint.ticket_status,
+            "category": draft.get("category"),
+            "subject": draft.get("subject"),
+            "text": draft.get("text"),
+            "cite": draft.get("cite"),
+            "reporters": [r["reporter"] for r in reports],
+            "plus_ones": sum(r.get("plus_ones", 0) for r in reports),
+            "reports": reports,
+            "escalation_log": complaint.escalation_log,
+            "created_at": complaint.created_at,
+        }
+
     @app.get("/public/scoreboard")
     def scoreboard() -> list[dict[str, Any]]:
         rows: dict[str, dict[str, Any]] = {}
@@ -241,6 +275,52 @@ def create_app() -> FastAPI:
 
     class NightlyIn(BaseModel):
         auto_approve: bool | None = None
+
+    class StatusIn(BaseModel):
+        status: str = Field(pattern="^(acknowledged|resolved)$")
+        note: str = Field(default="", max_length=1000)
+
+    @app.post("/admin/complaints/{complaint_id}/status")
+    def set_complaint_status(complaint_id: str, body: StatusIn) -> dict[str, Any]:
+        """Record the city's response on a complaint (email channel has no
+        ticket-status API — an operator records acknowledgments/resolutions).
+
+        Ends the chase for resolved complaints; acknowledged ones stay
+        monitored until resolved.
+        """
+        store = get_store()
+        complaint = store.get_complaint(complaint_id)
+        if complaint is None:
+            raise HTTPException(status_code=404, detail=f"unknown complaint {complaint_id}")
+        if not complaint.ticket_id and complaint.status != "filed":
+            raise HTTPException(
+                status_code=409,
+                detail=f"complaint is {complaint.status}; status can only be recorded after filing",
+            )
+        complaint.status = body.status
+        complaint.ticket_status = body.status
+        if body.status == "resolved":
+            complaint.resolved_note = body.note
+        else:
+            complaint.acknowledged_note = body.note
+        store.save_complaint(complaint)
+        # log to the run that owns the complaint's last event trail
+        runs = store.list_runs()
+        if runs:
+            run = runs[0]
+            run.add_event(
+                "status_recorded",
+                complaint_id=complaint_id,
+                status=body.status,
+                note=body.note[:200],
+                source="operator",
+            )
+            store.save_run(run)
+        return {
+            "complaint_id": complaint_id,
+            "status": complaint.status,
+            "ticket_status": complaint.ticket_status,
+        }
 
     @app.post("/admin/nightly")
     def run_nightly(body: NightlyIn | None = None) -> dict[str, Any]:
