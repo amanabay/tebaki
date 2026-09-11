@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { MoonStar, Siren, List, Map as MapIcon } from "lucide-react";
+import { Activity, DatabaseZap, List, Map as MapIcon, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CityMap } from "@/components/CityMap";
 import { NightLog, NightLogHeader } from "@/components/NightLog";
@@ -47,38 +47,51 @@ function ShiftBar({
   message,
   onNightly,
   onChase,
+  onSeed,
 }: {
-  busy: "nightly" | "chase" | null;
+  busy: "nightly" | "chase" | "seed" | null;
   message: string | null;
   onNightly: () => void;
   onChase: () => void;
+  onSeed: () => void;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-surface-1 px-4 py-3">
-      <div>
-        <p className="micro-label">the guardian's shift</p>
-        <p className="text-sm text-muted-foreground">
-          Files every night at 02:00 — or start it now.
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
+    <section className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-surface-1 px-5 py-5 shadow-sm sm:px-6">
+      <div className="absolute inset-y-0 left-0 w-1 bg-primary" aria-hidden="true" />
+      <div className="flex flex-wrap items-center justify-between gap-5">
+        <div className="max-w-xl">
+          <div className="mb-2 flex items-center gap-2 text-primary">
+            <Radar className="size-4" aria-hidden="true" />
+            <p className="micro-label text-primary">Neighborhood operations</p>
+          </div>
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Keep every civic issue moving.</h1>
+          <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
+            Turn resident reports into coordinated cases, then check every open deadline.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
         <span
           role="status"
           aria-live="polite"
-          className="max-w-72 text-right text-xs text-muted-foreground"
+          className="basis-full text-left text-xs text-muted-foreground lg:basis-auto lg:text-right"
         >
           {message}
         </span>
         <Button onClick={onNightly} disabled={busy !== null}>
-          <MoonStar className="size-4" aria-hidden="true" />
-          {busy === "nightly" ? "Running…" : "Run tonight's cycle"}
+          <Activity className="size-4" aria-hidden="true" />
+          {busy === "nightly" ? "Processing…" : "Process new reports"}
         </Button>
         <Button variant="outline" onClick={onChase} disabled={busy !== null}>
-          <Siren className="size-4" aria-hidden="true" />
-          {busy === "chase" ? "Chasing…" : "Chase tickets"}
+          <Radar className="size-4" aria-hidden="true" />
+          {busy === "chase" ? "Checking…" : "Check deadlines"}
         </Button>
+        <Button variant="ghost" onClick={onSeed} disabled={busy !== null}>
+          <DatabaseZap className="size-4" aria-hidden="true" />
+          {busy === "seed" ? "Loading…" : "Load sample reports"}
+        </Button>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -97,34 +110,34 @@ function StatStrip({
   const escalated = ledger.filter((r) => statusKind(r.status) === "escalated").length;
   const resolved = ledger.filter((r) => statusKind(r.status) === "resolved").length;
   const stats = [
-    { label: "complaints", value: ledger.length, tone: "text-foreground", to: "/ledger" },
+    { label: "total cases", value: ledger.length, tone: "text-foreground", to: "/ledger" },
     { label: "active", value: active, tone: "text-status-filed", to: "/ledger?f=active" },
     { label: "escalated", value: escalated, tone: "text-status-escalated", to: "/ledger?f=escalated" },
     { label: "resolved", value: resolved, tone: "text-status-filed", to: "/ledger?f=resolved" },
     {
-      label: "awaiting you",
+      label: "needs review",
       value: pendingCount,
       tone: "text-primary",
       to: "/decisions",
     },
   ];
   return (
-    <div className="mb-6 grid grid-cols-2 divide-border rounded-md border border-border bg-surface-1 sm:grid-cols-5 sm:divide-x">
+    <section aria-label="Case summary" className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
       {stats.map((s) => (
         <Link
           to={s.to}
           key={s.label}
-          className="px-4 py-4 transition-colors hover:bg-surface-2"
+          className="group rounded-xl border border-border bg-surface-1 px-4 py-4 shadow-sm transition-[border-color,transform] hover:-translate-y-0.5 hover:border-primary/40"
         >
           <p className="micro-label">{s.label}</p>
           {loading ? (
             <Skeleton className="mt-1 h-8 w-10" />
           ) : (
-            <p className={`num mt-1 text-3xl font-bold ${s.tone}`}>{s.value}</p>
+            <p className={`num mt-2 text-3xl font-bold tracking-tight ${s.tone}`}>{s.value}</p>
           )}
         </Link>
       ))}
-    </div>
+    </section>
   );
 }
 
@@ -152,7 +165,7 @@ function FilterChips({
           aria-pressed={filter === f.value}
           onClick={() => onChange(f.value)}
           className={
-            "rounded-full border px-3 py-1 text-xs transition-colors " +
+            "min-h-8 rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
             (filter === f.value
               ? "border-primary/60 bg-primary/10 font-medium text-primary"
               : "border-border text-muted-foreground hover:text-foreground")
@@ -179,11 +192,11 @@ function LedgerTable({
 }) {
   const filtered = ledger.filter((row) => matchesFilter(row.status, filter));
   return (
-    <section className="rounded-md border border-border bg-surface-1">
+    <section className="overflow-hidden rounded-xl border border-border bg-surface-1 shadow-sm">
       <header className="flex items-baseline justify-between border-b border-border px-4 py-3">
         <div>
-          <p className="micro-label">civic gazette</p>
-          <h2 className="mt-0.5 font-serif text-lg font-semibold">Complaint ledger</h2>
+          <p className="micro-label">Case register</p>
+          <h2 className="mt-0.5 text-lg font-bold tracking-tight">Reported issues</h2>
         </div>
         <span className="num text-[11px] text-muted-foreground">{ledger.length} entries</span>
       </header>
@@ -195,7 +208,7 @@ function LedgerTable({
       />
       {ledger.length === 0 ? (
         <p className="p-6 text-sm text-muted-foreground">
-          Nothing filed yet. Report an issue and tonight's cycle will draft a complaint for it.
+          No cases yet. Report an issue, then process new reports to prepare it for review.
         </p>
       ) : filtered.length === 0 ? (
         <p className="p-6 text-sm text-muted-foreground">
@@ -277,7 +290,7 @@ export function Dashboard({
   initialView?: "map" | "ledger";
 }) {
   const [view, setView] = useState<"map" | "ledger">(initialView);
-  const [busy, setBusy] = useState<"nightly" | "chase" | null>(null);
+  const [busy, setBusy] = useState<"nightly" | "chase" | "seed" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const loading = data.online === null;
@@ -324,24 +337,53 @@ export function Dashboard({
     }
   };
 
+  const seedDemo = async () => {
+    setBusy("seed");
+    setMessage(null);
+    try {
+      const result = await api.seedDemo();
+      setMessage(
+        result.added.length
+          ? `${result.added.length} sample reports loaded. Process new reports when you're ready.`
+          : "Demo reports are already loaded.",
+      );
+      data.refresh();
+    } catch {
+      setMessage("Demo data is available only on the sandbox city pack.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {data.online === false && (
         <div
           role="alert"
-          className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive"
+        className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         >
           Can't reach the guardian's engine. Check that it's running, then this page will
           reconnect on its own.
         </div>
       )}
-      <ShiftBar busy={busy} message={message} onNightly={runNightly} onChase={runChase} />
+      <ShiftBar
+        busy={busy}
+        message={message}
+        onNightly={runNightly}
+        onChase={runChase}
+        onSeed={seedDemo}
+      />
       <StatStrip ledger={data.ledger} pendingCount={data.decisions.length} loading={loading} />
 
       {/* map / ledger view switch */}
-      <div className="flex items-center justify-end gap-1" role="group" aria-label="View">
+      <div className="flex items-center justify-between gap-3" role="group" aria-label="View">
+        <div>
+          <p className="micro-label">Live case network</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">See where reports cluster and how the agent is responding.</p>
+        </div>
+        <div className="flex items-center gap-1 rounded-xl bg-surface-2 p-1">
         <Button
-          variant={view === "map" ? "default" : "outline"}
+          variant={view === "map" ? "default" : "ghost"}
           size="sm"
           onClick={() => setView("map")}
           aria-pressed={view === "map"}
@@ -349,18 +391,19 @@ export function Dashboard({
           <MapIcon className="size-3.5" aria-hidden="true" /> Map
         </Button>
         <Button
-          variant={view === "ledger" ? "default" : "outline"}
+          variant={view === "ledger" ? "default" : "ghost"}
           size="sm"
           onClick={() => setView("ledger")}
           aria-pressed={view === "ledger"}
         >
           <List className="size-3.5" aria-hidden="true" /> List
         </Button>
+        </div>
       </div>
 
       {view === "map" ? (
         <div className="grid gap-6 lg:grid-cols-3">
-          <section className="overflow-hidden rounded-md border border-border bg-surface-1 lg:col-span-2">
+          <section className="overflow-hidden rounded-xl border border-border bg-surface-1 shadow-sm lg:col-span-2">
             <h2 className="sr-only">Watch map</h2>
             {loading ? (
               <Skeleton className="h-[420px] rounded-none border-0" />
@@ -368,7 +411,7 @@ export function Dashboard({
               <CityMap data={data.mapData} onDataStale={data.refresh} />
             )}
           </section>
-          <section className="flex flex-col rounded-md border border-border bg-surface-1">
+          <section className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface-1 shadow-sm">
             <NightLogHeader events={data.activity} />
             <div className="rule-dashed mx-4" />
             {loading ? (

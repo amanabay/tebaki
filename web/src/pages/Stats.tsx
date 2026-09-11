@@ -18,10 +18,7 @@ function CategoryBars({ counts, total }: { counts: Record<string, number>; total
           return (
             <li key={c.value} className="flex items-center gap-4 px-4 py-3">
               <span className="w-24 shrink-0 text-sm">
-                {c.en}{" "}
-                <span lang="am" className="font-ethiopic text-[10px] text-muted-foreground">
-                  {c.am}
-                </span>
+                {c.en}
               </span>
               <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                 <div
@@ -131,7 +128,7 @@ export function Stats({ data }: { data: EngineData }) {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <p className="micro-label">the archive, counted</p>
+        <p className="micro-label">Service signals</p>
         <h1 className="mt-1 font-serif text-2xl font-bold">Statistics</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
           What the neighborhood reports, how the city responds.
