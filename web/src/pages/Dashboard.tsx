@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Activity, DatabaseZap, List, Map as MapIcon, Radar } from "lucide-react";
+import { Activity, DatabaseZap, FastForward, List, Map as MapIcon, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CityMap } from "@/components/CityMap";
 import { NightLog, NightLogHeader } from "@/components/NightLog";
@@ -48,12 +48,16 @@ function ShiftBar({
   onNightly,
   onChase,
   onSeed,
+  onMissSla,
+  canMissSla,
 }: {
-  busy: "nightly" | "chase" | "seed" | null;
+  busy: "nightly" | "chase" | "seed" | "miss-sla" | null;
   message: string | null;
   onNightly: () => void;
   onChase: () => void;
   onSeed: () => void;
+  onMissSla: () => void;
+  canMissSla: boolean;
 }) {
   return (
     <section className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-surface-1 px-5 py-5 shadow-sm sm:px-6">
@@ -88,6 +92,10 @@ function ShiftBar({
         <Button variant="ghost" onClick={onSeed} disabled={busy !== null}>
           <DatabaseZap className="size-4" aria-hidden="true" />
           {busy === "seed" ? "Loading…" : "Load sample reports"}
+        </Button>
+        <Button variant="ghost" onClick={onMissSla} disabled={busy !== null || !canMissSla}>
+          <FastForward className="size-4" aria-hidden="true" />
+          {busy === "miss-sla" ? "Advancing…" : "Demo: miss SLA"}
         </Button>
         </div>
       </div>
@@ -290,7 +298,7 @@ export function Dashboard({
   initialView?: "map" | "ledger";
 }) {
   const [view, setView] = useState<"map" | "ledger">(initialView);
-  const [busy, setBusy] = useState<"nightly" | "chase" | "seed" | null>(null);
+  const [busy, setBusy] = useState<"nightly" | "chase" | "seed" | "miss-sla" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const loading = data.online === null;
@@ -355,6 +363,22 @@ export function Dashboard({
     }
   };
 
+  const missDemoSla = async () => {
+    setBusy("miss-sla");
+    setMessage(null);
+    try {
+      const result = await api.missDemoDeadlines();
+      setMessage(
+        `${result.affected.length} case${result.affected.length === 1 ? " is" : "s are"} now past the SLA. Check deadlines to trigger the agent.`,
+      );
+      data.refresh();
+    } catch {
+      setMessage("File a sandbox case before using the missed-SLA demo control.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {data.online === false && (
@@ -372,6 +396,10 @@ export function Dashboard({
         onNightly={runNightly}
         onChase={runChase}
         onSeed={seedDemo}
+        onMissSla={missDemoSla}
+        canMissSla={data.ledger.some((caseItem) =>
+          ["filed", "acknowledged", "escalated"].includes(statusKind(caseItem.status)),
+        )}
       />
       <StatStrip ledger={data.ledger} pendingCount={data.decisions.length} loading={loading} />
 

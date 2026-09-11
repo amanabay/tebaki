@@ -117,7 +117,7 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  submitReport: (r: { category: string; lat: number; lon: number; note: string; reporter: string }) =>
+  submitReport: (r: { category: string; lat: number; lon: number; note: string; reporter: string; photo_data?: string }) =>
     json<{ report_id: string; status: string }>("/reports", { method: "POST", body: JSON.stringify(r) }),
   listReports: () => json<Report[]>("/reports"),
   plusOne: (reportId: string) =>
@@ -142,6 +142,13 @@ export const api = {
       body: JSON.stringify(autoApprove === null ? {} : { auto_approve: autoApprove }),
     }),
   runChase: () => json<Record<string, unknown>>("/admin/chase", { method: "POST" }),
+  seedDemo: () =>
+    json<{ added: string[]; total_demo_reports: number }>("/admin/demo/seed", { method: "POST" }),
+  missDemoDeadlines: () =>
+    json<{ affected: string[]; simulated_days: number; next_step: string }>(
+      "/admin/demo/miss-deadlines",
+      { method: "POST" },
+    ),
   caseFile: (complaintId: string) => json<CaseFile>(`/public/complaints/${complaintId}`),
   setComplaintStatus: (complaintId: string, status: "acknowledged" | "resolved", note: string) =>
     json<{ complaint_id: string; status: string; ticket_status: string }>(

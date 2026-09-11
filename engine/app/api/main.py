@@ -7,6 +7,7 @@ The decision-queue endpoints resume real paused Strands interrupts:
 POST /decisions/{card_id}/resolve approves/edits/drops a pending filing.
 """
 
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import Any
 
@@ -26,6 +27,7 @@ class ReportIn(BaseModel):
     lon: float = Field(ge=-180, le=180)
     note: str = Field(min_length=1, max_length=1000)
     reporter: str = Field(default="anonymous", max_length=100)
+    photo_data: str | None = Field(default=None, max_length=450_000)
 
 
 class ResolveIn(BaseModel):
@@ -69,6 +71,12 @@ def create_app() -> FastAPI:
                 detail="This location is outside the city the guardian watches. Drop the pin inside the city boundary.",
             )
         store = get_store()
+        if body.photo_data is not None:
+            if not body.photo_data.startswith("data:image/"):
+                raise HTTPException(status_code=422, detail="photo_data must be an image data URL")
+            # Keep the demo payload below DynamoDB's practical item-size limit.
+            if len(body.photo_data) > 450_000:
+                raise HTTPException(status_code=413, detail="photo is too large; use an image under 320 KB")
         report = store.add_report(
             Report(
                 category=body.category,
@@ -76,6 +84,7 @@ def create_app() -> FastAPI:
                 lon=body.lon,
                 note=body.note,
                 reporter=body.reporter,
+                photo_key=body.photo_data,
             )
         )
         return {"report_id": report.report_id, "status": report.status}
@@ -95,6 +104,86 @@ def create_app() -> FastAPI:
         report.plus_ones = report.plus_ones + 1
         store.save_report(report)
         return {"report_id": report_id, "plus_ones": report.plus_ones}
+
+    @app.post("/admin/demo/seed")
+    def seed_demo() -> dict[str, Any]:
+        """Insert the deterministic three-report judge scenario once.
+
+        This is intentionally an explicit admin action: production instances
+        never receive demo data merely by starting the service.
+        """
+        if settings.city_pack != "sandbox":
+            raise HTTPException(
+                status_code=409,
+                detail="The deterministic demo scenario is only available for the sandbox city pack.",
+            )
+        store = get_store()
+        existing_notes = {r.note for r in store.list_reports()}
+        samples = [
+            ("waste", 9.010, 38.760, "Demo neighbor: garbage pile on sidewalk"),
+            ("waste", 9.012, 38.758, "Demo neighbor: trash not collected for days"),
+            ("pothole", 9.040, 38.790, "Demo neighbor: deep pothole, hazard for motorcycles"),
+        ]
+        added = []
+        for category, lat, lon, note in samples:
+            if note in existing_notes:
+                continue
+            report = store.add_report(
+                Report(category=category, lat=lat, lon=lon, note=note, reporter="demo neighbor")
+            )
+            added.append(report.report_id)
+        return {"added": added, "total_demo_reports": len(samples)}
+
+    @app.post("/admin/demo/miss-deadlines")
+    def miss_demo_deadlines() -> dict[str, Any]:
+        """Move active sandbox tickets past their SLA for a deterministic demo.
+
+        Real city packs can never call this endpoint successfully. It exists so
+        judges can observe the chaser agent's escalation behavior without
+        waiting several calendar days.
+        """
+        if settings.city_pack != "sandbox":
+            raise HTTPException(
+                status_code=409,
+                detail="Deadline simulation is only available for the sandbox city pack.",
+            )
+
+        from app.city_pack import load_city_pack
+
+        pack = load_city_pack(settings.cities_dir.resolve(), settings.city_pack)
+        store = get_store()
+        active = store.filed_complaints()
+        if not active:
+            raise HTTPException(
+                status_code=409,
+                detail="File at least one sandbox complaint before simulating a missed deadline.",
+            )
+
+        now = datetime.now(UTC)
+        age_days = max(pack.sla.acknowledge_days, pack.sla.resolve_days) + 1
+        filed_at = now - timedelta(days=age_days)
+        missed_at = now - timedelta(days=1)
+        affected: list[str] = []
+        for complaint in active:
+            complaint.filed_at = filed_at.isoformat()
+            complaint.ack_deadline = missed_at.isoformat()
+            complaint.resolve_deadline = missed_at.isoformat()
+            store.save_complaint(complaint)
+            affected.append(complaint.complaint_id)
+
+        runs = sorted(store.list_runs(), key=lambda r: r.started_at, reverse=True)
+        if runs:
+            runs[0].add_event(
+                "demo_deadlines_missed",
+                complaints=len(affected),
+                simulated_days=age_days,
+            )
+            store.save_run(runs[0])
+        return {
+            "affected": affected,
+            "simulated_days": age_days,
+            "next_step": "Run the deadline check to let the chaser agent evaluate and escalate them.",
+        }
 
     # --- decision queue ------------------------------------------------------------
 
@@ -215,15 +304,13 @@ def create_app() -> FastAPI:
                 },
             )
             row["complaints"] += 1
-            if complaint.status.startswith(("filed", "acknowledged", "escalated_")):
+            if complaint.status.startswith(("filed", "acknowledged", "resolved", "escalated_")):
                 row["filed"] += 1
             if complaint.status == "acknowledged":
                 row["acknowledged"] += 1
             if complaint.status == "resolved":
-                row["filed"] += 1
                 row["resolved"] += 1
             if complaint.status.startswith("escalated_"):
-                row["filed"] += 1
                 row["escalated"] += 1
         return sorted(rows.values(), key=lambda r: r["complaints"], reverse=True)
 
@@ -247,6 +334,8 @@ def create_app() -> FastAPI:
                 "lon": r.lon,
                 "status": r.status,
                 "severity": r.severity,
+                "triage_confidence": r.triage_confidence,
+                "triage_reason": r.triage_reason,
                 "plus_ones": r.plus_ones,
             }
             for r in store.list_reports()

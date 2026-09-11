@@ -118,3 +118,41 @@ def test_admin_endpoints(portal_client, three_reports) -> None:
     chase = client.post("/admin/chase").json()
     assert chase["events"][-1]["kind"] == "chase_end"
     assert chase["events"][-1]["checked"] == 2
+
+
+def test_demo_seed_is_idempotent(portal_client, clean_store) -> None:
+    client = _client()
+    first = client.post("/admin/demo/seed")
+    assert first.status_code == 200
+    assert len(first.json()["added"]) == 3
+    second = client.post("/admin/demo/seed")
+    assert second.status_code == 200
+    assert second.json()["added"] == []
+    assert len(client.get("/reports").json()) == 3
+
+
+def test_demo_can_simulate_missed_sla_then_escalate(portal_client, three_reports) -> None:
+    client = _client()
+    client.post("/admin/nightly")  # sandbox auto-approves and files two cases
+
+    advanced = client.post("/admin/demo/miss-deadlines")
+    assert advanced.status_code == 200
+    assert len(advanced.json()["affected"]) == 2
+    assert advanced.json()["simulated_days"] > 0
+
+    chase = client.post("/admin/chase")
+    assert chase.status_code == 200
+    end = next(event for event in chase.json()["events"] if event["kind"] == "chase_end")
+    assert end["checked"] == 2
+    assert end["escalated"] == 2
+
+    ledger = client.get("/public/ledger").json()
+    assert {row["status"] for row in ledger} == {"escalated_1"}
+    assert all(row["escalation_log"][0]["delivered"] is True for row in ledger)
+
+
+def test_demo_deadline_simulation_requires_filed_cases(portal_client, clean_store) -> None:
+    client = _client()
+    response = client.post("/admin/demo/miss-deadlines")
+    assert response.status_code == 409
+    assert "File at least one" in response.text

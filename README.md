@@ -13,7 +13,7 @@ tebaki/
 ├─ engine/           Python: Strands orchestrator, FastAPI, tools, agents
 ├─ web/              React 19 + Vite + TS SPA/PWA (intake + dashboard + decision queue)
 ├─ cities/           City Packs: addis.yaml, chicago.yaml, sandbox.yaml (+ geojson/)
-├─ infra/            Deployment configuration (populated during the build week)
+├─ infra/            Container + AgentCore deployment helper
 ├─ sandbox-portal/   Mock city portal for offline dev/CI/eval
 ├─ cli/              tebaki validate / run / demo / chase
 └─ tebaki.md         Full plan (pitch, architecture, schedule)
@@ -34,7 +34,15 @@ PYTHONPATH=engine:sandbox-portal .venv/bin/uvicorn app.api.main:app --port 8000
 cd web && npm install && npm run dev   # http://localhost:5173
 ```
 
-Try it: submit a report at `/report`, then hit **Run tonight's cycle** on the dashboard (or `curl -X POST localhost:8000/admin/nightly -H 'Content-Type: application/json' -d '{"auto_approve": false}'`). The draft appears under **Decisions** — approve it and the guardian files it with the mock portal and returns a real ticket id.
+Try it: submit a report at `/report`, then hit **Process new reports** on the dashboard (or `curl -X POST localhost:8000/admin/nightly -H 'Content-Type: application/json' -d '{"auto_approve": false}'`). The draft appears under **Review** — approve it and the guardian files it with the mock portal and returns a real ticket id.
+
+For a judge-ready seeded path, open the dashboard on the sandbox pack and choose **Load sample reports**. It inserts two nearby waste reports from different neighbors plus one separate pothole. The visible flow is: **Load sample reports → Process new reports → Review → approve → ticket → Demo: miss SLA → Check deadlines**. The demo clock control is sandbox-only, idempotent for active tickets, and lets the chaser prove escalation without waiting several days.
+
+## Architecture
+
+![Tebaki architecture](docs/architecture.svg)
+
+The production shape is a scheduled Strands workflow backed by DynamoDB and official city channels. Local development uses the same graph, a scripted offline model, an in-memory store, and the sandbox portal. The human approval interrupt is durable in the persistent store and every run emits an activity trail for the dashboard.
 
 For persistence, run DynamoDB Local (`docker run -d -p 8000:8000 amazon/dynamodb-local:latest` — use a port other than 8000 if the engine owns 8000) and start the engine with `TEBAKI_STORE=dynamodb TEBAKI_DDB_ENDPOINT=<url> TEBAKI_DYNAMODB_TABLE=tebaki`.
 

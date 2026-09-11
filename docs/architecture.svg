@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650" role="img" aria-labelledby="title desc">
+  <title id="title">Tebaki architecture</title>
+  <desc id="desc">Residents report issues to a FastAPI service. A Strands graph triages, clusters and drafts cases. A human approves a decision card, then the filing and chaser agents send and monitor the case through city channels.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#3155d9"/></marker>
+    <style>
+      .title{font:700 28px 'Public Sans',Arial,sans-serif;fill:#18233f}.label{font:600 16px 'Public Sans',Arial,sans-serif;fill:#18233f}.small{font:400 13px 'Public Sans',Arial,sans-serif;fill:#4c5b78}.mono{font:600 12px monospace;fill:#3155d9}.box{stroke:#c9d3e5;stroke-width:2;rx:16}.line{stroke:#3155d9;stroke-width:3;fill:none;marker-end:url(#arrow)}.dash{stroke:#7d8daa;stroke-width:2;stroke-dasharray:7 7;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1200" height="650" fill="#f5f7fb"/>
+  <text x="64" y="62" class="title">Tebaki · civic operations architecture</text>
+  <text x="64" y="90" class="small">The agent carries the repetitive coordination loop; people only decide when judgment is needed.</text>
+
+  <rect x="64" y="158" width="205" height="126" class="box" fill="#e8efff"/>
+  <text x="88" y="194" class="mono">INPUT</text><text x="88" y="223" class="label">Resident web app</text>
+  <text x="88" y="248" class="small">Photo · GPS · one line</text><text x="88" y="269" class="small">Map · cases · status</text>
+
+  <rect x="344" y="138" width="244" height="166" class="box" fill="#ffffff"/>
+  <text x="369" y="174" class="mono">CONTROL PLANE</text><text x="369" y="205" class="label">FastAPI + City Pack</text>
+  <text x="369" y="232" class="small">Geo-fence · PII safety</text><text x="369" y="253" class="small">Public API · decision queue</text><text x="369" y="274" class="small">DynamoDB or memory store</text>
+
+  <rect x="658" y="118" width="252" height="206" class="box" fill="#e9fbf6"/>
+  <text x="684" y="154" class="mono">STRANDS GRAPH</text><text x="684" y="185" class="label">Nightly operations agent</text>
+  <text x="684" y="214" class="small">1 · Triage and validate</text><text x="684" y="237" class="small">2 · Cluster neighbors</text><text x="684" y="260" class="small">3 · Draft cited complaint</text><text x="684" y="283" class="small">4 · File + chase tools</text>
+
+  <rect x="973" y="158" width="163" height="126" class="box" fill="#fff4df"/>
+  <text x="996" y="194" class="mono">HUMAN GATE</text><text x="996" y="223" class="label">Decision card</text>
+  <text x="996" y="248" class="small">Approve · edit</text><text x="996" y="269" class="small">or drop</text>
+
+  <path d="M269 221 H344" class="line"/><path d="M588 221 H658" class="line"/><path d="M910 221 H973" class="line"/>
+
+  <rect x="344" y="404" width="244" height="126" class="box" fill="#ffffff"/>
+  <text x="369" y="440" class="mono">PERSISTENCE</text><text x="369" y="471" class="label">Case state + evidence</text>
+  <text x="369" y="498" class="small">Reports · tickets · SLAs</text><text x="369" y="519" class="small">Runs · escalation trail</text>
+
+  <rect x="658" y="404" width="252" height="126" class="box" fill="#ffffff"/>
+  <text x="684" y="440" class="mono">CITY CHANNELS</text><text x="684" y="471" class="label">Official filing adapters</text>
+  <text x="684" y="498" class="small">Sandbox · email · Open311</text><text x="684" y="519" class="small">Ticket checks + escalation</text>
+
+  <rect x="64" y="404" width="205" height="126" class="box" fill="#ffffff"/>
+  <text x="88" y="440" class="mono">SCHEDULER</text><text x="88" y="471" class="label">02:00 city time</text>
+  <text x="88" y="498" class="small">EventBridge in production</text><text x="88" y="519" class="small">Button for local demo</text>
+
+  <path d="M786 324 V404" class="line"/><path d="M588 467 H658" class="line"/><path d="M269 467 H344" class="dash"/><path d="M786 324 C786 360 466 360 466 404" class="dash"/>
+  <path d="M166 404 V284" class="dash"/>
+  <text x="64" y="595" class="small">City Packs keep local boundaries, contacts, regulations, channels, and SLAs as data.</text>
+  <text x="64" y="620" class="small">A paused filer is resumed only after a human decision; every action is visible in the public case timeline.</text>
+</svg>

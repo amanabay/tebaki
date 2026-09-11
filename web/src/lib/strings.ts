@@ -167,6 +167,8 @@ export function eventCopy(kind: string, e: Record<string, unknown>): string {
       return `Chase round started`;
     case "chase_end":
       return `Chase done — ${String(e.checked)} checked, ${String(e.escalated)} escalated, ${String(e.resolved ?? 0)} resolved`;
+    case "demo_deadlines_missed":
+      return `Demo clock advanced — ${String(e.complaints)} cases now exceed their SLA`;
     case "cycle_end":
       return `Cycle ended`;
     default:
