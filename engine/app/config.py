@@ -19,7 +19,10 @@ class Settings(BaseSettings):
 
     # AWS / Bedrock
     aws_region: str = "us-east-1"
-    bedrock_model_id: str = "amazon.nova-pro-v1:0"
+    # Nova Lite is the cost-conscious live model used for testing. It supports
+    # the reliable tool-calling needed by the multi-agent filing workflow.
+    # Override with TEBAKI_BEDROCK_MODEL_ID for Nova Micro or Nova Pro.
+    bedrock_model_id: str = "amazon.nova-lite-v1:0"
 
     # Intake / API
     app_host: str = "0.0.0.0"

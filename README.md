@@ -58,6 +58,7 @@ CLI: `.venv/bin/python cli/tebaki.py [validate|run|demo|chase] --city sandbox`.
 | `TEBAKI_STORE` | `dynamodb` to use the DynamoDB store (default: in-memory) |
 | `TEBAKI_DDB_ENDPOINT` / `TEBAKI_DYNAMODB_TABLE` | DynamoDB endpoint (Local) / table name |
 | `TEBAKI_LIVE_BEDROCK` | `1` to run agents on Bedrock (default: scripted offline model) |
+| `TEBAKI_BEDROCK_MODEL_ID` | Live model override; defaults to cost-conscious `amazon.nova-lite-v1:0` (Nova Micro/Pro are supported) |
 | `TEBAKI_EMAIL_MODE` / `TEBAKI_SES_FROM` | `ses` + verified sender to send email filings for real |
 | `TEBAKI_CHICAGO_311_KEY` | Chicago Open311 API key |
 | `TEBAKI_CORS_ORIGINS` | Allowed CORS origins for the engine (JSON list) |
