@@ -69,21 +69,25 @@ class _Registry:
             logging.getLogger(__name__).warning("snapshot persistence failed: %s", e)
 
     def resume(self, card_id: str) -> PausedFiling:
+        # Prefer the persisted snapshot even when the process still has a live
+        # agent. The API may have run the first pass on a closed event loop;
+        # reusing that agent can leave its async state bound to the old loop.
+        # Rebuilding also makes local approval behave exactly like a restart.
+        card = get_store().get_card(card_id)
+        if card is not None and card.paused_state:
+            self.paused.pop(card_id, None)
+            from strands.types._snapshot import Snapshot
+
+            from app.agents.roles import filer_agent
+
+            agent = filer_agent()
+            agent.load_snapshot(Snapshot.from_dict(card.paused_state))
+            return PausedFiling(agent=agent, interrupt_id=str(card.context.get("interrupt_id", "")))
+
         live = self.paused.pop(card_id, None)
         if live is not None:
             return live
-        # Engine restarted (or another process paused the filing):
-        # rebuild the agent from the persisted snapshot on the card.
-        card = get_store().get_card(card_id)
-        if card is None or not card.paused_state:
-            raise KeyError(f"no paused filing for card {card_id!r}")
-        from strands.types._snapshot import Snapshot
-
-        from app.agents.roles import filer_agent
-
-        agent = filer_agent()
-        agent.load_snapshot(Snapshot.from_dict(card.paused_state))
-        return PausedFiling(agent=agent, interrupt_id=str(card.context.get("interrupt_id", "")))
+        raise KeyError(f"no paused filing for card {card_id!r}")
 
     def pending_cards(self) -> list[str]:
         return list(self.paused)

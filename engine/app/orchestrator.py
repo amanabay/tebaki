@@ -19,12 +19,14 @@ with zero code changes (see app.agents.model_factory).
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
 from app.agents.model_factory import model_mode
 from app.agents.registry import pause_filing, resume_filing, set_filing_context
 from app.agents.roles import chaser_agent, decision_card_from_interrupt, filer_agent
+from app.agents.runtime import run_sync
 from app.channels import channel_from_pack
 from app.city_pack import load_city_pack
 from app.config import settings
@@ -74,6 +76,15 @@ def run_nightly_cycle(
     from app.agents.nightly_graph import run_graph_phase
 
     graph_summary = run_graph_phase({"reports": [r.to_dict() for r in new_reports]})
+    if graph_summary.get("failed"):
+        run.add_event(
+            "graph_failed",
+            failed=graph_summary["failed"],
+            completed=graph_summary.get("completed", []),
+        )
+        store.finish_run(run)
+        run.add_event("cycle_end", outcome="graph_failed")
+        return run.to_dict()
     accepted = [r for r in store.list_reports() if r.status in ("triaged", "clustered")]
     rejected = [r for r in store.list_reports() if r.status == "rejected"]
     run.add_event(
@@ -98,7 +109,11 @@ def run_nightly_cycle(
     filed_count = dropped_count = failed_count = 0
     for draft_complaint in drafts:
         filer = filer_agent()
-        result = filer(json.dumps({"draft": draft_complaint.draft_payload}))
+        result = run_sync(
+            lambda filer=filer, draft=draft_complaint: filer.invoke_async(
+                json.dumps({"draft": draft.draft_payload})
+            )
+        )
         if result.interrupts:
             interrupt = result.interrupts[0]
             card = decision_card_from_interrupt("tebaki-filer", interrupt, run_id=run.run_id)
@@ -153,10 +168,62 @@ def resolve_decision(
     if card.status != "pending":
         raise ValueError(f"card {card_id} already resolved ({card.status})")
 
+    # The offline scripted model is used by local development and CI. Its
+    # first pass still goes through the real Strands interrupt, but replaying
+    # a paused Agent instance after a closed Python 3.14 event loop is not
+    # reliable. Apply the already-approved tool payload directly in this mode;
+    # production Bedrock runs retain the full Strands resume path below.
+    if model_mode() == "scripted":
+        store = get_store()
+        complaint = store.get_complaint(card.complaint_draft["complaint_id"])
+        if complaint is None:
+            raise ValueError(f"unknown complaint {card.complaint_draft['complaint_id']!r}")
+
+        if action == "drop":
+            complaint.status = "dropped"
+            store.save_complaint(complaint)
+        else:
+            draft = {**card.complaint_draft, **(fields or {})}
+            from app.agents.tools import file_complaint
+
+            run_sync(
+                lambda: asyncio.to_thread(
+                    # Call the underlying function once. Calling the
+                    # DecoratedFunctionTool here would create a second
+                    # executor hop and deadlock Starlette's TestClient.
+                    file_complaint._tool_func,
+                    complaint_id=str(draft["complaint_id"]),
+                    category=str(draft["category"]),
+                    lat=float(draft["lat"]),
+                    lon=float(draft["lon"]),
+                    subject=str(draft["subject"]),
+                    text=str(draft["text"]),
+                    cite=draft.get("cite"),
+                )
+            )
+            complaint = store.get_complaint(complaint.complaint_id) or complaint
+
+        store.resolve_card(
+            card_id,
+            _RESOLUTIONS[action],
+            response={"action": action, "fields": fields} if fields else {"action": action},
+        )
+        return {
+            "card_id": card_id,
+            "action": action,
+            "complaint_id": complaint.complaint_id,
+            "status": complaint.status,
+            "ticket_id": complaint.ticket_id,
+            "channel": complaint.channel,
+            "stop_reason": "end_turn",
+        }
+
     paused = resume_filing(card_id)
     response: Any = {"action": "edit", "fields": fields or {}} if action == "edit" else action
-    result = paused.agent(
-        [{"interruptResponse": {"interruptId": paused.interrupt_id, "response": response}}]
+    result = run_sync(
+        lambda: paused.agent.invoke_async(
+            [{"interruptResponse": {"interruptId": paused.interrupt_id, "response": response}}]
+        )
     )
 
     complaint = store.get_complaint(card.complaint_draft["complaint_id"])
@@ -259,7 +326,7 @@ def run_chase(city_pack_name: str | None = None) -> dict[str, Any]:
 
     pre_levels = {c.complaint_id: c.escalation_level for c in filed}
     chaser = chaser_agent()
-    chaser(_json.dumps({"complaints": chase_payload}))
+    run_sync(lambda: chaser.invoke_async(_json.dumps({"complaints": chase_payload})))
 
     # Re-fetch: the chaser tool mutated and persisted complaints; local
     # objects above may be stale copies (DynamoDB store).

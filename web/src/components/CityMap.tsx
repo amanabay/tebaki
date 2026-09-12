@@ -120,9 +120,10 @@ export function CityMap({ data, onDataStale }: { data: MapData | null; onDataSta
   const { theme } = useTheme();
   const dark = theme === "dark";
   const [recenterKey, setRecenterKey] = useState(0);
-  const tiles = dark
-    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-    : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+  // OpenStreetMap tiles are keyless and keep the public dashboard usable in
+  // a fresh deployment. The app's own status colors provide the visual
+  // hierarchy in both themes, so a paid basemap is unnecessary here.
+  const tiles = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
   const legend = useMemo(
     () => [
@@ -145,7 +146,7 @@ export function CityMap({ data, onDataStale }: { data: MapData | null; onDataSta
         attributionControl
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url={tiles}
         />
         <FitBounds data={data} recenterKey={recenterKey} />

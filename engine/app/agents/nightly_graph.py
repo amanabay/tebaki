@@ -16,6 +16,7 @@ import json
 from strands.multiagent import GraphBuilder
 
 from app.agents.roles import clusterer_agent, drafter_agent, triage_agent
+from app.agents.runtime import run_sync
 from app.store import get_store
 
 
@@ -51,7 +52,7 @@ def run_graph_phase(reports_payload: dict) -> dict:
     Returns the GraphResult summary dict.
     """
     graph = build_nightly_graph()
-    result = graph(json.dumps(reports_payload))
+    result = run_sync(lambda: graph.invoke_async(json.dumps(reports_payload)))
     return {
         "status": str(getattr(result.status, "value", result.status)),
         "completed": [n.node_id for n in result.execution_order],

@@ -143,6 +143,7 @@ def triage_script(payload: dict[str, Any], tool_specs: list[ToolSpec]) -> tuple[
                 if note.strip()
                 else "empty note",
                 "language": "am" if _is_amharic(note) else "en",
+                "confidence": 0.9 if note.strip() else 0.1,
             }
         )
     return ("submit_triage", {"results": results})
@@ -348,5 +349,16 @@ class ScriptedModel(Model):
         yield {"contentBlockStop": {"contentBlockIndex": 0}}
         yield {"messageStop": {"stopReason": "tool_use"}}
 
-    async def count_tokens(self, prompt: Messages, tools: list[ToolSpec] | None = None) -> int:
+    async def count_tokens(
+        self,
+        prompt: Messages,
+        tool_specs: list[ToolSpec] | None = None,
+        **kwargs: Any,
+    ) -> int:
+        """Return a stable estimate using the current Strands model contract.
+
+        Strands passes tool definitions as ``tool_specs``. Accept additional
+        keyword arguments so this deterministic model remains compatible as
+        the SDK adds optional token-counting hints.
+        """
         return sum(len(str(m)) for m in prompt)

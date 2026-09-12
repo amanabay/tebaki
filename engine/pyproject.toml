@@ -2,7 +2,7 @@
 name = "tebaki-engine"
 version = "0.1.0"
 description = "Tebaki — the city's guardian: Strands-powered civic complaint engine"
-readme = "README.md"
+readme = {text = "Tebaki civic operations engine", content-type = "text/plain"}
 requires-python = ">=3.12"
 dependencies = [
     "strands-agents>=0.1",
@@ -13,14 +13,17 @@ dependencies = [
     "pyyaml>=6.0",
     "h3>=4.0",
     "scikit-learn>=1.5",
-    "httpx>=0.27",
+    # Starlette's TestClient relies on the pre-0.28 transport API.
+    "httpx>=0.27,<0.28",
     "boto3>=1.35",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.3",
-    "pytest-asyncio>=0.24",
+    # pytest-asyncio currently targets pytest 8's plugin API; keep the test
+    # runner below pytest 9 until that compatibility line is released.
+    "pytest>=8.3,<9",
+    "pytest-asyncio>=0.24,<1",
     "ruff>=0.7",
     "mypy>=1.11",
 ]
@@ -37,5 +40,8 @@ line-length = 100
 target-version = "py312"
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
+# Tests are synchronous (the app exposes sync orchestration handlers). Strict
+# mode prevents pytest-asyncio from wrapping them in an event loop, which
+# conflicts with Starlette TestClient's own blocking portal on Python 3.12+.
+asyncio_mode = "strict"
 testpaths = ["tests"]

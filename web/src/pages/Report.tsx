@@ -59,6 +59,7 @@ export function Report() {
   const [pos, setPos] = useState<[number, number] | null>(null);
   const [note, setNote] = useState("");
   const [reporter, setReporter] = useState("");
+  const [photoData, setPhotoData] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -81,6 +82,22 @@ export function Report() {
     } finally {
       setSearching(false);
     }
+  };
+
+  const attachPhoto = (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Please choose an image file.");
+      return;
+    }
+    if (file.size > 320_000) {
+      setError("That image is too large. Choose one under 320 KB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPhotoData(typeof reader.result === "string" ? reader.result : null);
+    reader.readAsDataURL(file);
+    setError(null);
   };
 
   const pickResult = (r: { name: string; lat: number; lon: number }) => {
@@ -111,6 +128,7 @@ export function Report() {
         lon: pos[1],
         note: note.trim(),
         reporter: reporter.trim() || "anonymous",
+        ...(photoData ? { photo_data: photoData } : {}),
       });
       setDoneId(out.report_id);
     } catch (e) {
@@ -165,7 +183,7 @@ export function Report() {
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <p className="micro-label">
-          report an issue · <span lang="am">ችግር ሪፖርት</span>
+          report an issue
         </p>
         <h1 className="mt-1 font-serif text-2xl font-bold text-balance">
           Tell the guardian once.{" "}
@@ -195,9 +213,6 @@ export function Report() {
               >
                 <Icon className="size-5" aria-hidden="true" />
                 <span className="text-xs font-medium">{c.en}</span>
-                <span lang="am" className="font-ethiopic text-[10px] opacity-70">
-                  {c.am}
-                </span>
               </button>
             );
           })}
@@ -289,12 +304,8 @@ export function Report() {
             attributionControl
           >
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
-              url={
-                theme === "dark"
-                  ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                  : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-              }
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <MapClick onPick={(lat, lon) => setPos([lat, lon])} />
             {pos && (
@@ -337,6 +348,29 @@ export function Report() {
           aria-describedby={fieldError && !note.trim() ? "field-error" : undefined}
           aria-invalid={fieldError ? true : undefined}
         />
+      </div>
+
+      {/* optional photo evidence */}
+      <div>
+        <label htmlFor="report-photo" className="micro-label mb-2 block">
+          photo evidence (optional)
+        </label>
+        <Input
+          id="report-photo"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={(e) => attachPhoto(e.target.files?.[0])}
+          className="text-sm file:mr-3 file:border-0 file:bg-transparent file:text-xs"
+        />
+        {photoData && (
+          <div className="mt-2 flex items-center gap-3">
+            <img src={photoData} alt="Attached report evidence" className="size-16 rounded object-cover" />
+            <button type="button" className="text-xs text-primary underline-offset-4 hover:underline" onClick={() => setPhotoData(null)}>
+              Remove photo
+            </button>
+          </div>
+        )}
       </div>
 
       <div>
