@@ -51,7 +51,10 @@ def get_account_id() -> str:
 
 def build_image() -> None:
     print("[1/4] building engine image (this can take a few minutes)…")
-    sh(["docker", "build", "-f", "infra/Dockerfile", "-t", "tebaki-engine:local", "."])
+    sh([
+        "docker", "buildx", "build", "--platform", "linux/arm64", "--load",
+        "-f", "infra/Dockerfile", "-t", "tebaki-engine:local", ".",
+    ])
     print("      image built")
 
 
@@ -88,44 +91,56 @@ def ensure_repo_and_push(account_id: str) -> str:
 
 def ensure_runtime(image_uri: str, role_arn: str) -> str:
     print("[3/4] ensuring AgentCore Runtime…")
-    from bedrock_agentcore.management import get_boto3_client
+    import boto3
 
-    client = get_boto3_client(region_name=REGION)
+    client = boto3.client("bedrock-agentcore-control", region_name=REGION)
     existing = None
     try:
-        resp = client.list_runtimes()
-        for rt in resp.get("runtimes", []):
-            if rt.get("name") == RUNTIME_NAME:
+        resp = client.list_agent_runtimes()
+        for rt in resp.get("agentRuntimes", []):
+            if rt.get("agentRuntimeName") == RUNTIME_NAME:
                 existing = rt
                 break
     except Exception as e:  # noqa: BLE001
         print(f"      list_runtimes failed: {e}", file=sys.stderr)
 
     if existing:
-        runtime_id = existing["runtimeId"]
+        runtime_id = existing["agentRuntimeId"]
         print(f"      runtime exists: {runtime_id}")
         try:
-            client.update_runtime(
-                runtimeIdentifier=runtime_id,
+            client.update_agent_runtime(
+                agentRuntimeId=runtime_id,
+                agentRuntimeArtifact={"containerConfiguration": {"containerUri": image_uri}},
                 roleArn=role_arn,
-                containerUri=image_uri,
+                protocolConfiguration={"serverProtocol": "HTTP"},
+                environmentVariables={
+                    "TEBAKI_CITY_PACK": "addis",
+                    "TEBAKI_AWS_REGION": REGION,
+                    "TEBAKI_LIVE_BEDROCK": "1",
+                },
             )
             print("      runtime updated")
         except Exception as e:  # noqa: BLE001
             print(f"      update_runtime skipped: {e}")
         return runtime_id
 
-    resp = client.create_runtime(
-        runtimeName=RUNTIME_NAME,
+    resp = client.create_agent_runtime(
+        agentRuntimeName=RUNTIME_NAME,
+        agentRuntimeArtifact={"containerConfiguration": {"containerUri": image_uri}},
         roleArn=role_arn,
-        containerUri=image_uri,
+        protocolConfiguration={"serverProtocol": "HTTP"},
+        environmentVariables={
+            "TEBAKI_CITY_PACK": "addis",
+            "TEBAKI_AWS_REGION": REGION,
+            "TEBAKI_LIVE_BEDROCK": "1",
+        },
     )
-    runtime_id = resp["runtimeId"]
+    runtime_id = resp["agentRuntimeId"]
     print(f"      runtime created: {runtime_id}")
 
     # wait for READY
     for _ in range(60):
-        status = client.get_runtime(runtimeIdentifier=runtime_id)["status"]
+        status = client.get_agent_runtime(agentRuntimeId=runtime_id)["status"]
         print(f"      status: {status}")
         if status == "READY":
             break

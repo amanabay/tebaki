@@ -40,6 +40,9 @@ def submit_triage(results: list[dict[str, Any]]) -> str:
     seen: set[str] = set()
     for r in results:
         rid = str(r.get("report_id", "")).strip()
+        if rid and rid in seen:
+            errors.append(f"{rid}: duplicate triage result")
+            continue
         report = store.get_report(rid) if rid else None
         if report is None:
             errors.append(f"unknown report_id {rid!r}")

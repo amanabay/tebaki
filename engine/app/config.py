@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     """Engine configuration. AWS-side config; local dev defaults to sandbox pack."""
 
     model_config = SettingsConfigDict(
-        env_prefix="TEBAKI_", env_file=".env", extra="ignore"
+        env_prefix="TEBAKI_", env_file=_REPO_ROOT / "engine" / ".env", extra="ignore"
     )
 
     # City pack selection

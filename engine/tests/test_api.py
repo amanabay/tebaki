@@ -25,6 +25,26 @@ def test_report_intake_roundtrip(portal_client, clean_store) -> None:
     listed = client.get("/reports").json()
     assert len(listed) == 1
     assert listed[0]["reporter"] == "selam"
+    # TestClient waits for FastAPI background tasks, so the response keeps its
+    # intake contract while the persisted report already has instant triage.
+    assert listed[0]["status"] == "triaged"
+    assert listed[0]["triage_reason"]
+    assert 0 <= listed[0]["triage_confidence"] <= 1
+
+
+def test_public_map_exposes_instant_triage_metadata(portal_client, clean_store) -> None:
+    client = _client()
+    response = client.post(
+        "/reports",
+        json={"category": "drain", "lat": 9.01, "lon": 38.76, "note": "blocked drain"},
+    )
+    assert response.status_code == 201
+
+    mapped = client.get("/public/map").json()["reports"]
+    assert len(mapped) == 1
+    assert mapped[0]["status"] == "triaged"
+    assert mapped[0]["triage_reason"]
+    assert mapped[0]["triage_confidence"] is not None
 
 
 def test_report_intake_validation(portal_client, clean_store) -> None:

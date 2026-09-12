@@ -425,6 +425,25 @@ def create_app() -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    # AgentCore's HTTP runtime contract uses /ping for readiness and
+    # /invocations for signed runtime calls. Keep the ordinary REST surface
+    # above for local/browser clients and expose a small explicit action
+    # envelope for the managed runtime.
+    @app.get("/ping")
+    def ping() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.post("/invocations")
+    def agentcore_invocation(body: dict[str, Any]) -> dict[str, Any]:
+        action = str(body.get("action", "health"))
+        if action in {"health", "ping"}:
+            return health()
+        if action == "run_nightly":
+            return run_nightly_cycle(auto_approve=body.get("auto_approve"))
+        if action == "run_chase":
+            return run_chase()
+        raise HTTPException(status_code=400, detail=f"unsupported AgentCore action: {action}")
+
     return app
 
 

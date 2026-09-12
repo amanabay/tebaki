@@ -13,7 +13,10 @@ import re
 
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _PHONE_RE = re.compile(r"\+?\d[\d\s().-]{7,16}\d")
-_LONG_DIGITS_RE = re.compile(r"\d{7,}")
+# Do not treat internal report IDs (for example, ``R-1234567A``) as resident
+# PII. They are deliberately included in complaint evidence for traceability.
+# A long run must be a standalone numeric token to be considered sensitive.
+_LONG_DIGITS_RE = re.compile(r"(?<![A-Za-z0-9-])\d{7,}(?![A-Za-z0-9])")
 
 _REDACTED = "[redacted]"
 _PHONE_MIN_DIGITS = 9  # Ethiopian +251... and generic international numbers

@@ -37,5 +37,5 @@ ENV PYTHONPATH=/app/engine:/app/sandbox-portal \
 
 # default: plain HTTP server (ECS/Fargate/local). AgentCore overrides the
 # entrypoint args at deploy time for the runtime protocol.
-EXPOSE 8000
-CMD ["python", "-m", "uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8080
+CMD ["python", "-m", "uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8080"]

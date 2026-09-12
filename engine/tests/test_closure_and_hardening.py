@@ -91,7 +91,7 @@ def test_submit_triage_skips_bad_rows_without_half_applying(clean_store) -> None
             {"report_id": good.report_id, "category": "nonsense", "severity": 3, "valid": True, "reason": "y", "language": "en"},
         ]
     )
-    assert "skipped 2 bad rows" in out
+    assert "skipped 3 bad rows" in out
     assert store.get_report(good.report_id).status == "triaged"
     assert store.get_report(good.report_id).category == "waste"
 

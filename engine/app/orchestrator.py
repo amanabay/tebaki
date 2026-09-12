@@ -86,6 +86,7 @@ def run_nightly_cycle(
     if not new_reports:
         store.finish_run(run)
         run.add_event("cycle_end", outcome="no_new_reports")
+        store.save_run(run)
         return run.to_dict()
     run.add_event("triage_start", new_reports=len(new_reports))
 
@@ -102,6 +103,7 @@ def run_nightly_cycle(
         )
         store.finish_run(run)
         run.add_event("cycle_end", outcome="graph_failed")
+        store.save_run(run)
         return run.to_dict()
     accepted = [r for r in store.list_reports() if r.status in ("triaged", "clustered")]
     rejected = [r for r in store.list_reports() if r.status == "rejected"]
@@ -114,6 +116,7 @@ def run_nightly_cycle(
     if not accepted:
         store.finish_run(run)
         run.add_event("cycle_end", outcome="all_rejected")
+        store.save_run(run)
         return run.to_dict()
 
     clustered = [r for r in store.list_reports() if r.status == "clustered"]
@@ -166,6 +169,9 @@ def run_nightly_cycle(
         failed=failed_count,
         awaiting_approval=len(pending),
     )
+    # DynamoDB stores a detached copy; persist the terminal event after adding
+    # it (the in-memory store does not require this extra write).
+    store.save_run(run)
     return run.to_dict()
 
 
@@ -226,6 +232,22 @@ def resolve_decision(
             _RESOLUTIONS[action],
             response={"action": action, "fields": fields} if fields else {"action": action},
         )
+        # Scripted resume applies the filing tool directly, so record the
+        # terminal decision on the persisted run just like the live resume
+        # path below. This matters for detached DynamoDB run objects.
+        run_id = card.context.get("run_id")
+        if run_id:
+            run = store.get_run(run_id)
+            if run is not None and run.finished_at is not None:
+                run.add_event(
+                    "filed" if complaint.status == "filed" else "dropped",
+                    card_id=card_id,
+                    complaint_id=complaint.complaint_id,
+                    ticket_id=complaint.ticket_id,
+                    channel=complaint.channel,
+                    action=action,
+                )
+                store.save_run(run)
         return {
             "card_id": card_id,
             "action": action,
@@ -316,6 +338,7 @@ def run_chase(city_pack_name: str | None = None) -> dict[str, Any]:
     if not filed:
         store.finish_run(run)
         run.add_event("chase_end", outcome="no_filed_complaints")
+        store.save_run(run)
         return run.to_dict()
 
     now = datetime.now(UTC)
@@ -380,4 +403,5 @@ def run_chase(city_pack_name: str | None = None) -> dict[str, Any]:
         escalated=len(escalated_now),
         resolved=len(resolved_now),
     )
+    store.save_run(run)
     return run.to_dict()
