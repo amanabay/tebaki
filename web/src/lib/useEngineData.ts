@@ -39,20 +39,24 @@ export function useEngineData(): EngineData {
     if (inflight.current) return;
     inflight.current = true;
     try {
-      const [l, s, a, m, d] = await Promise.all([
+      const results = await Promise.allSettled([
         api.ledger(),
         api.scoreboard(),
         api.activity(),
         api.mapData(),
         api.listDecisions(),
       ]);
-      setLedger(l);
-      setScoreboard(s);
-      setActivity(a);
-      setMapData(m);
-      setDecisions(d);
-      setOnline(true);
-      failures.current = 0;
+      const [l, s, a, m, d] = results;
+      // Keep the last good value for an individual panel. A transient error
+      // in one endpoint must not blank the whole app or reset navigation.
+      if (l.status === "fulfilled") setLedger(l.value);
+      if (s.status === "fulfilled") setScoreboard(s.value);
+      if (a.status === "fulfilled") setActivity(a.value);
+      if (m.status === "fulfilled") setMapData(m.value);
+      if (d.status === "fulfilled") setDecisions(d.value);
+      const failed = results.some((result) => result.status === "rejected");
+      setOnline(!failed);
+      failures.current = failed ? failures.current + 1 : 0;
     } catch {
       failures.current += 1;
       setOnline(false);
