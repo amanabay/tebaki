@@ -8,7 +8,6 @@ import { Skeleton } from "@/components/Skeleton";
 import { api, type CaseFile } from "@/lib/api";
 import {
   categoryLabel,
-  amCategory,
   daysUntil,
   reportersLabel,
   timeAgo,
@@ -166,10 +165,7 @@ export function CaseFilePage() {
           </span>
           {file.category && (
             <span className="text-xs text-muted-foreground">
-              {categoryLabel(file.category)}{" "}
-              <span lang="am" className="font-ethiopic">
-                {amCategory(file.category)}
-              </span>
+              {categoryLabel(file.category)}
             </span>
           )}
           <span className="text-xs text-muted-foreground">{file.ward}</span>
@@ -224,7 +220,7 @@ export function CaseFilePage() {
                 <p className="num mt-1.5 text-[11px] text-muted-foreground">
                   sev {r.severity}
                   {r.plus_ones > 0 && ` · ${r.plus_ones} corroborated`}
-                  {r.language === "am" && " · አማርኛ"}
+                  {r.language === "am" && " · Amharic report"}
                 </p>
               </li>
             ))}

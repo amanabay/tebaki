@@ -4,32 +4,34 @@
   {
    "type": "Feature",
    "properties": {
-    "admin_level": "sub-city",
-    "name": "Addis Ababa (placeholder bbox \u2014 replace with OSM sub-city extract)"
+    "admin_level": "city",
+    "name": "Addis Ababa city boundary (published administrative extent)",
+    "source": "Ethiopian National Agri Data Hub, Addis Ababa City Woreda Boundary",
+    "source_url": "https://data.moa.gov.et/dataset/69097202-4874-4200-800f-b36b7f920bfc"
    },
    "geometry": {
     "type": "Polygon",
     "coordinates": [
      [
       [
-       38.65,
-       8.95
+       38.637931941,
+       8.832202561
       ],
       [
-       39.05,
-       8.95
+       38.90543632,
+       8.832202561
       ],
       [
-       39.05,
-       9.1
+       38.90543632,
+       9.098292635
       ],
       [
-       38.65,
-       9.1
+       38.637931941,
+       9.098292635
       ],
       [
-       38.65,
-       8.95
+       38.637931941,
+       8.832202561
       ]
      ]
     ]

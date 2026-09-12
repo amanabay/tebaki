@@ -7,40 +7,41 @@ city:
 boundary:
   geojson: geojson/addis.geojson
   note: >-
-    TODO-RESEARCH: placeholder bbox polygon. Replace with OSM sub-city
-    boundary extract (docs/addis-research.md, task 2).
+    Published city-level administrative extent from the Ethiopian National
+    Agri Data Hub (WGS84; dataset metadata updated 2025-09-03). Sub-city
+    polygons remain a follow-up import; reports use the city fallback until
+    that layer is locally vendored.
 admin:
-  - level: sub-city
+  - level: city
     source: geojson
 channels:
   email:
-    # TODO-RESEARCH: verify real sub-city office addresses (docs/addis-research.md, task 3).
-    - target: Sub-city Sanitation, Beautification and Parks Development Office
-      address: research-pending@placeholder.invalid
+    - target: Addis Ababa City Communication Bureau (routing contact; sanitation handoff to verify)
+      address: admin@addiscommunication.gov.et
       lang: am
   browser: null
   escalation:
-    # TODO-RESEARCH: verify contacts and after_days for each rung (docs/addis-research.md, task 3).
     - level: sub-city
-      target: Sub-city grievance office
-      email: null
+      target: Addis city routing desk (sub-city destination to be confirmed)
+      email: admin@addiscommunication.gov.et
       after_days: 7
     - level: city
-      target: Addis Ababa Cleansing Management Agency
-      email: null
+      target: Addis Ababa Mayor's Office
+      email: info@aacmo.gov.et
       after_days: 14
     - level: federal
-      target: Federal Grievance Handling (Office of the Prime Minister)
-      email: null
+      target: Federal government eServices support / grievance routing
+      email: contact@mint.gov.et
       after_days: 30
 regulations:
-  - cite: Solid Waste Management Proclamation No. 513/2007
-    # TODO-RESEARCH: add the proclamation PDF (docs/addis-research.md, task 4).
-    doc: docs/proc513.pdf
+  - cite: "Solid Waste Management Proclamation No. 513/2007 — https://leap.unep.org/en/countries/et/national-legislation/solid-waste-management-proclamation-no-513-2007"
+    # Source-linked citation is used until the PDF is vendored locally.
+    doc: null
 sla:
   acknowledge_days: 7
   resolve_days: 30
 pitch:
-  # TODO-RESEARCH: citable stat + source (docs/addis-research.md, task 1).
-  number: TODO-RESEARCH
-  source: TODO-RESEARCH
+  # JICA/AACMA 2022/23 waste-flow estimate; retained as a source-backed
+  # context statistic, not a live service-level measurement.
+  number: "2,647 tonnes of municipal solid waste generated per day (2022/23 estimate)"
+  source: "JICA, Solid Waste Management Advisor for Addis Ababa City, Project Completion Report (2024), Fig. 2-11 — https://openjicareport.jica.go.jp/pdf/12384889.pdf"

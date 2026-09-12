@@ -37,17 +37,21 @@ def submit_triage(results: list[dict[str, Any]]) -> str:
     store = get_store()
     accepted = 0
     errors: list[str] = []
+    seen: set[str] = set()
     for r in results:
         rid = str(r.get("report_id", "")).strip()
         report = store.get_report(rid) if rid else None
         if report is None:
             errors.append(f"unknown report_id {rid!r}")
             continue
+        seen.add(rid)
         if not r.get("valid", False):
             report.status = "rejected"
         else:
             category = r.get("category", report.category)
             if category not in _VALID_CATEGORIES:
+                report.status = "rejected"
+                store.save_report(report)
                 errors.append(f"{rid}: invalid category {category!r}")
                 continue
             try:
@@ -56,9 +60,22 @@ def submit_triage(results: list[dict[str, Any]]) -> str:
                 report.severity = 3
             report.category = category
             report.language = r.get("language", "en")
+            try:
+                report.triage_confidence = max(0.0, min(1.0, float(r.get("confidence", 0.7))))
+            except (TypeError, ValueError):
+                report.triage_confidence = 0.5
+            report.triage_reason = str(r.get("reason", ""))[:300]
             report.status = "triaged"
             accepted += 1
         store.save_report(report)
+    # A batch tool call is the triage stage's commit point. If a model omits a
+    # report, reject it explicitly instead of leaving it in `new` forever and
+    # reprocessing it on every nightly run.
+    for report in store.new_reports():
+        if report.report_id not in seen:
+            report.status = "rejected"
+            store.save_report(report)
+            errors.append(f"{report.report_id}: missing triage result")
     summary = f"triaged {accepted}/{len(results)} reports accepted"
     if errors:
         summary += f"; skipped {len(errors)} bad rows ({'; '.join(errors[:3])})"
@@ -140,8 +157,22 @@ def submit_complaint_drafts(drafts: list[dict[str, Any]]) -> str:
         if missing:
             errors.append(f"draft #{i}: missing {', '.join(missing)}")
             continue
+        refs = [str(r) for r in draft["report_refs"]]
+        # Idempotency: a retried drafter call must not create a second civic
+        # case for the same cluster of reports.
+        existing = next(
+            (
+                c
+                for c in store.list_complaints()
+                if c.status != "dropped" and set(c.report_refs) == set(refs)
+            ),
+            None,
+        )
+        if existing is not None:
+            staged.append(existing.complaint_id)
+            continue
         complaint = Complaint(
-            report_refs=[str(r) for r in draft["report_refs"]],
+            report_refs=refs,
             ward=str(draft["ward"]),
             draft_text=str(draft["text"]),
             status="awaiting_approval",

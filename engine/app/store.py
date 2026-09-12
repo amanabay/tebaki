@@ -42,6 +42,8 @@ class Report:
         status: str = "new",
         severity: int = 3,
         language: str = "en",
+        triage_confidence: float | None = None,
+        triage_reason: str | None = None,
         plus_ones: int = 0,
         created_at: str | None = None,
     ) -> None:
@@ -55,6 +57,8 @@ class Report:
         self.status = status  # new | triaged | clustered | rejected | filed
         self.severity = severity
         self.language = language
+        self.triage_confidence = triage_confidence
+        self.triage_reason = triage_reason
         self.plus_ones = plus_ones  # neighbor corroborations
         self.created_at = created_at or _now()
 
@@ -70,6 +74,8 @@ class Report:
             "status": self.status,
             "severity": self.severity,
             "language": self.language,
+            "triage_confidence": self.triage_confidence,
+            "triage_reason": self.triage_reason,
             "plus_ones": self.plus_ones,
             "created_at": self.created_at,
         }
@@ -87,6 +93,8 @@ class Report:
             status=data.get("status", "new"),
             severity=int(data.get("severity", 3)),
             language=data.get("language", "en"),
+            triage_confidence=(float(data["triage_confidence"]) if data.get("triage_confidence") is not None else None),
+            triage_reason=data.get("triage_reason"),
             plus_ones=int(data.get("plus_ones", 0)),
             created_at=data.get("created_at"),
         )

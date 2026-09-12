@@ -96,7 +96,7 @@ def test_status_only_after_filing(portal_client, clean_store) -> None:
     store = clean_store
     from app.store import Complaint
 
-    complaint = store.add_complaint(
+    store.add_complaint(
         Complaint(complaint_id="C-DRAFT", report_refs=[], ward="W", draft_text="t", status="awaiting_approval")
     )
     client = _client()

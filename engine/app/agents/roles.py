@@ -50,11 +50,12 @@ correct the reporter's guess from the note)
 exposed wiring)
 - valid: false if the note is empty, unreadable, or not a civic issue
 - language: "am" if the note is Amharic, else "en"
+- confidence: 0.0 to 1.0 confidence in the classification
 - reason: one short sentence
 
 OUTPUT: call the submit_triage tool EXACTLY ONCE with {"results": [ ... ]} \
 covering every report in the batch. Each result must carry the keys \
-report_id, category, severity, valid, reason, language. Never invent \
+report_id, category, severity, valid, reason, language, confidence. Never invent \
 details a report does not contain.
 """
 

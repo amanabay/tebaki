@@ -11,7 +11,7 @@ import {
   type DecisionCard as DecisionCardT,
   type ResolveOutcome,
 } from "@/lib/api";
-import { CATEGORIES, reportersLabel, timeAgo } from "@/lib/strings";
+import { reportersLabel, timeAgo } from "@/lib/strings";
 import type { EngineData } from "@/lib/useEngineData";
 
 function SeverityDots({ level }: { level: number }) {
@@ -30,10 +30,6 @@ function SeverityDots({ level }: { level: number }) {
       ))}
     </span>
   );
-}
-
-function amLabel(value: string): string {
-  return CATEGORIES.find((c) => c.value === value)?.am ?? "";
 }
 
 type ResolvedState = { outcome: ResolveOutcome };
@@ -167,10 +163,7 @@ function DecisionCardView({
           <div>
             <dt className="micro-label">category</dt>
             <dd className="mt-0.5">
-              {card.draft.category}{" "}
-              <span lang="am" className="font-ethiopic text-xs text-muted-foreground">
-                {amLabel(card.draft.category)}
-              </span>
+              {card.draft.category}
             </dd>
           </div>
           <div>

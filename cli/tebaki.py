@@ -56,7 +56,9 @@ def _cmd_demo(args: argparse.Namespace) -> int:
         store = get_store()
         store.add_report(Report(category="waste", lat=9.010, lon=38.760, note="garbage pile on sidewalk"))
         store.add_report(Report(category="waste", lat=9.012, lon=38.758, note="trash not collected for days"))
-        store.add_report(Report(category="pothole", lat=9.100, lon=38.700, note="deep pothole, hazard for motorcycles"))
+        # Keep every seeded point inside the sandbox boundary so the same
+        # scenario works through the API geo-fence and direct CLI execution.
+        store.add_report(Report(category="pothole", lat=9.040, lon=38.790, note="deep pothole, hazard for motorcycles"))
 
     run_nightly_cycle(city_pack_name=args.city, auto_approve=False)
     store = get_store()

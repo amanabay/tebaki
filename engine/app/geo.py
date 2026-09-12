@@ -109,7 +109,26 @@ def load_boundary_features(geojson_path: Path) -> list[dict]:
     data = json.loads(geojson_path.read_text(encoding="utf-8"))
     if data.get("type") != "FeatureCollection":
         raise ValueError(f"expected FeatureCollection in {geojson_path}")
-    return [f for f in data["features"] if f.get("geometry", {}).get("type") == "Polygon"]
+    # Administrative boundaries commonly arrive as MultiPolygon (islands,
+    # enclaves, or multipart extracts). Keep both shapes; callers below use
+    # the same point-in-ring primitive for every outer ring.
+    return [
+        f
+        for f in data["features"]
+        if f.get("geometry", {}).get("type") in {"Polygon", "MultiPolygon"}
+    ]
+
+
+def _outer_rings(feature: dict) -> list[list[list[float]]]:
+    """Return every outer ring for a Polygon or MultiPolygon feature."""
+    geometry = feature.get("geometry", {})
+    kind = geometry.get("type")
+    coordinates = geometry.get("coordinates", [])
+    if kind == "Polygon":
+        return [coordinates[0]] if coordinates and coordinates[0] else []
+    if kind == "MultiPolygon":
+        return [polygon[0] for polygon in coordinates if polygon and polygon[0]]
+    return []
 
 
 def _point_in_ring(lat: float, lon: float, ring: list[list[float]]) -> bool:
@@ -130,11 +149,14 @@ def _point_in_ring(lat: float, lon: float, ring: list[list[float]]) -> bool:
 def map_ward(lat: float, lon: float, features: list[dict], fallback: str) -> str:
     """Return the admin-unit name containing the point, else fallback."""
     for feature in features:
-        if _point_in_ring(lat, lon, feature["geometry"]["coordinates"][0]):
+        if any(_point_in_ring(lat, lon, ring) for ring in _outer_rings(feature)):
             return feature.get("properties", {}).get("name", fallback)
     return fallback
 
 
 def is_within_boundary(lat: float, lon: float, features: list[dict]) -> bool:
     """True if the point falls inside any boundary polygon feature."""
-    return any(_point_in_ring(lat, lon, f["geometry"]["coordinates"][0]) for f in features)
+    return any(
+        any(_point_in_ring(lat, lon, ring) for ring in _outer_rings(feature))
+        for feature in features
+    )

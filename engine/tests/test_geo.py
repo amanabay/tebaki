@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
-from app.geo import GeoPoint, cluster_reports, load_boundary_features, map_ward
+from app.geo import GeoPoint, cluster_reports, is_within_boundary, load_boundary_features, map_ward
 
 CITIES_DIR = Path(__file__).parents[2] / "cities"
 
@@ -56,3 +57,33 @@ def test_ward_mapping_inside_and_outside() -> None:
     outside = map_ward(10.5, 39.5, features, fallback="nowhere")
     assert inside == "Sandbox District"
     assert outside == "nowhere"
+
+
+def test_multipolygon_boundaries_are_loaded_and_mapped(tmp_path: Path) -> None:
+    path = tmp_path / "multipart.geojson"
+    path.write_text(
+        json.dumps(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Island Ward"},
+                        "geometry": {
+                            "type": "MultiPolygon",
+                            "coordinates": [
+                                [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+                                [[[2, 2], [3, 2], [3, 3], [2, 3], [2, 2]]],
+                            ],
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    features = load_boundary_features(path)
+    assert len(features) == 1
+    assert map_ward(2.5, 2.5, features, fallback="outside") == "Island Ward"
+    assert is_within_boundary(0.5, 0.5, features)
+    assert not is_within_boundary(4, 4, features)

@@ -109,10 +109,9 @@ def test_email_lang_must_be_city_language() -> None:
         )
 
 
-def test_strict_validation_flags_addis_research_todos() -> None:
+def test_strict_validation_passes_addis_source_linked_pack() -> None:
     issues = validate_pack_file(CITIES_DIR / "addis.yaml", strict=True)
-    assert issues, "addis strict validation should flag TODO placeholders"
-    assert any("TODO" in i for i in issues)
+    assert issues == []
 
 
 def test_strict_validation_passes_sandbox() -> None:

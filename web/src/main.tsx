@@ -16,11 +16,14 @@ import "@fontsource/noto-sans-ethiopic/400.css";
 import "@fontsource/noto-sans-ethiopic/600.css";
 import "./index.css";
 import App from "./App.tsx";
+import { LanguageProvider } from "./lib/i18n";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <LanguageProvider>
+        <App />
+      </LanguageProvider>
     </BrowserRouter>
   </StrictMode>,
 );

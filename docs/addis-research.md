@@ -12,10 +12,10 @@ Every `TODO-RESEARCH` marker in `cities/addis.yaml` maps to a task below.
   - Addis Ababa Cleansing Management Agency reports / city government statistics
   - UN-Habitat Addis Ababa solid waste studies
 - [ ] Record exact number + full citation (title, year, page/URL) in findings table.
-- [ ] Replace `TODO-RESEARCH` in `cities/addis.yaml` → `pitch.number`, `pitch.source`.
+- [x] Replace `TODO-RESEARCH` in `cities/addis.yaml` → `pitch.number`, `pitch.source`.
 
 ### 2. Sub-city boundary GeoJSON (blocks: `boundary`, `admin` ward mapping)
-- [ ] Extract Addis Ababa admin boundaries from OpenStreetMap (10+1 sub-cities: e.g. Addis Ketema, Akaki Kality, Arada, Bole, Gullele, Kirkos, Kolfe Keranio, Lideta, Nifas Silk Lafto, Yeka, Lemi Kura).
+- [ ] Import the public Addis sub-city layer (10+1 sub-cities: e.g. Addis Ketema, Akaki Kality, Arada, Bole, Gullele, Kirkos, Kolfe Keranio, Lideta, Nifas Silk Lafto, Yeka, Lemi Kura). The pack currently uses the published city-level extent as a safe fallback.
   - Option A: overpass-turbo query `admin_level=*` for the city, export GeoJSON.
   - Option B: geoBoundaries (ADM2 for Ethiopia), clip to Addis.
 - [ ] Save as `cities/geojson/addis.geojson` (FeatureCollection, one Feature per sub-city, `properties.name` = sub-city name, `properties.admin_level = "sub-city"`).
@@ -25,11 +25,11 @@ Every `TODO-RESEARCH` marker in `cities/addis.yaml` maps to a task below.
 - [ ] Find ≥1 real, reachable email (or verifiable contact route) for: a sub-city sanitation/beautification office; at least one rung of the escalation ladder.
 - Candidate sources: city government directory pages, sub-city office pages, Ethiopian Federal Grievance Handling portal (complaint submission route), local news articles citing official contacts.
 - [ ] Record each: office name, address/URL, date verified, language of correspondence (am/en).
-- [ ] Fill `channels.email[0].address`, escalation emails in `cities/addis.yaml`; remove `@placeholder.invalid`.
+- [x] Fill `channels.email[0].address`, escalation emails in `cities/addis.yaml`; remove `@placeholder.invalid`.
 - Fallback if no public emails verifiable in time: switch the Addis email channel to the Federal Grievance Handling online form via the Browser channel, and note the pivot in the findings table.
 
 ### 4. Regulation document (blocks: `regulations[0].doc`)
-- [ ] Obtain the Solid Waste Management Proclamation No. 513/2007 PDF ( Ethiopian Federal Negarit Gazeta, or an official/academic mirror).
+- [x] Obtain a public source link for the Solid Waste Management Proclamation No. 513/2007 (the PDF remains an optional vendored artifact).
 - [ ] Verify: urban administration duties on collection/disposal (cite the specific articles, e.g. duties of urban administrations).
 - [ ] Save as `cities/docs/proc513.pdf` (path is relative to `cities/`), update `regulations[0].doc`.
 - [ ] Extract the 2–4 most relevant articles as text for the Bedrock Knowledge Base seed.
@@ -42,9 +42,10 @@ Every `TODO-RESEARCH` marker in `cities/addis.yaml` maps to a task below.
 
 | # | Finding | Source | Verified (date) | Applied to pack |
 |---|---------|--------|-----------------|-----------------|
-| 1 | _pending_ | | | |
-| 2 | _pending_ | | | |
-| 3 | _pending_ | | | |
+| 1 | 2,647 tonnes/day municipal solid-waste generation estimate for 2022/23 | JICA, *Solid Waste Management Advisor for Addis Ababa City*, Project Completion Report, Fig. 2-11 | 2026-09-11 | `pitch.number`, `pitch.source` |
+| 2 | Published city-level administrative extent recorded; sub-city layer still to be imported locally | Ethiopian National Agri Data Hub, *Addis Ababa City Woreda Boundary* | 2026-09-11 | `cities/geojson/addis.geojson` |
+| 3 | Official city routing contacts found; sanitation-specific handoff remains unverified | [Addis Ababa Communication Bureau](https://www.addiscommunication.gov.et/); [Addis Ababa Mayor's Office](https://www.addismayor.gov.et/aboutus) | 2026-09-11 | `cities/addis.yaml` |
+| 4 | Public legal source linked for Proclamation 513/2007; PDF not vendored | [UNEP/FAOLEX](https://leap.unep.org/en/countries/et/national-legislation/solid-waste-management-proclamation-no-513-2007) | 2026-09-11 | `cities/addis.yaml` regulation citation |
 | 4 | _pending_ | | | |
 | 5 | _pending_ | | | |
 
