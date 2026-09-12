@@ -24,6 +24,10 @@ def get_model() -> Model:
         return BedrockModel(
             model_id=settings.bedrock_model_id,
             region_name=settings.aws_region,
+            # Tool calls are more reliable through Converse than the
+            # streaming event path, especially for Nova's structured output.
+            streaming=False,
+            temperature=0,
         )
     return ScriptedModel()
 
