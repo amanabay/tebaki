@@ -82,10 +82,13 @@ export function useEngineData(): EngineData {
     const onVisible = () => {
       if (document.visibilityState === "visible") refresh();
     };
+    const onDataRefresh = () => refresh();
     document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("tebaki-data-refresh", onDataRefresh);
     return () => {
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("tebaki-data-refresh", onDataRefresh);
     };
   }, [refresh]);
 

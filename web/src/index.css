@@ -281,6 +281,12 @@
   background: var(--background);
   font-family: var(--font-sans);
 }
+
+/* Keep the no-key OpenStreetMap source, but give the operations map a dark
+   visual treatment that matches the rest of the product. */
+.map-tiles-dark {
+  filter: brightness(0.62) contrast(1.2) saturate(0.7) hue-rotate(165deg);
+}
 .leaflet-control-attribution {
   background: color-mix(in oklch, var(--background) 70%, transparent) !important;
   color: var(--muted-foreground) !important;

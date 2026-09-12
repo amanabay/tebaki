@@ -21,14 +21,14 @@ tebaki/
 
 ## Quickstart
 
-Everything runs offline against the sandbox city pack (mock portal + scripted model):
+The default city pack is Addis Ababa. Sandbox remains available for offline demos and CI:
 
 ```bash
 # 1. mock city complaint portal (terminal 1)
 cd sandbox-portal && ../.venv/bin/uvicorn portal.app:app --port 9100
 
 # 2. Tebaki engine API (terminal 2, repo root)
-PYTHONPATH=engine:sandbox-portal .venv/bin/uvicorn app.api.main:app --port 8000
+TEBAKI_CITY_PACK=sandbox PYTHONPATH=engine:sandbox-portal .venv/bin/uvicorn app.api.main:app --port 8000
 
 # 3. web app (terminal 3)
 cd web && npm install && npm run dev   # http://localhost:5173
@@ -36,7 +36,7 @@ cd web && npm install && npm run dev   # http://localhost:5173
 
 Try it: submit a report at `/report`, then hit **Process new reports** on the dashboard (or `curl -X POST localhost:8000/admin/nightly -H 'Content-Type: application/json' -d '{"auto_approve": false}'`). The draft appears under **Review** — approve it and the guardian files it with the mock portal and returns a real ticket id.
 
-For a judge-ready seeded path, open the dashboard on the sandbox pack and choose **Load sample reports**. It inserts two nearby waste reports from different neighbors plus one separate pothole. The visible flow is: **Load sample reports → Process new reports → Review → approve → ticket → Demo: miss SLA → Check deadlines**. The demo clock control is sandbox-only, idempotent for active tickets, and lets the chaser prove escalation without waiting several days.
+For a judge-ready seeded path, use the sandbox pack above and choose **Load sample reports**. It inserts two nearby waste reports from different neighbors plus one separate pothole. The visible flow is: **Load sample reports → Process new reports → Review → approve → ticket → Demo: miss SLA → Check deadlines**. The demo clock control is sandbox-only, idempotent for active tickets, and lets the chaser prove escalation without waiting several days.
 
 ## Architecture
 

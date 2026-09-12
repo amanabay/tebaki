@@ -35,6 +35,22 @@ from app.store import get_store
 _RESOLUTIONS = {"approve": "approved", "edit": "edited", "drop": "dropped"}
 
 
+def run_instant_triage(report_id: str) -> None:
+    """Run the lightweight triage agent for one newly submitted report."""
+    store = get_store()
+    report = store.get_report(report_id)
+    if report is None or report.status != "new":
+        return
+    from app.agents.roles import triage_agent
+
+    agent = triage_agent()
+    run_sync(
+        lambda: agent.invoke_async(
+            json.dumps({"reports": [report.to_dict()], "mode": "instant_triage"})
+        )
+    )
+
+
 def run_nightly_cycle(
     city_pack_name: str | None = None,
     auto_approve: bool | None = None,
@@ -64,7 +80,9 @@ def run_nightly_cycle(
     if auto_approve is None:
         auto_approve = pack.city.name == "Sandbox City"
 
-    new_reports = store.new_reports()
+    # Include reports already triaged by the instant post-submit job; the
+    # graph will safely revalidate them before clustering.
+    new_reports = [r for r in store.list_reports() if r.status in ("new", "triaged")]
     if not new_reports:
         store.finish_run(run)
         run.add_event("cycle_end", outcome="no_new_reports")

@@ -201,7 +201,7 @@ def main() -> int:
     validate.set_defaults(func=_cmd_validate)
 
     run = sub.add_parser("run", help="run the nightly cycle for a city pack")
-    run.add_argument("--city", default="sandbox", help="city pack name (default: sandbox)")
+    run.add_argument("--city", default="addis", help="city pack name (default: addis)")
     run.add_argument(
         "--no-auto-approve",
         action="store_true",
@@ -217,7 +217,7 @@ def main() -> int:
     demo.set_defaults(func=_cmd_demo)
 
     chase = sub.add_parser("chase", help="check filed tickets, escalate past-SLA complaints")
-    chase.add_argument("--city", default="sandbox", help="city pack name (default: sandbox)")
+    chase.add_argument("--city", default="addis", help="city pack name (default: addis)")
     chase.set_defaults(func=_cmd_chase)
 
     test_chicago = sub.add_parser(

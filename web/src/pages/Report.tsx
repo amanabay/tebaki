@@ -30,6 +30,14 @@ const ICONS: Record<string, typeof Trash2> = {
 
 const CITY_CENTER: [number, number] = [9.02, 38.76];
 
+const LOCAL_PLACES = [
+  { name: "Shiro Meda, Addis Ababa", lat: 9.061, lon: 38.761 },
+  { name: "Meskel Square, Addis Ababa", lat: 9.010, lon: 38.761 },
+  { name: "Bole, Addis Ababa", lat: 8.999, lon: 38.787 },
+  { name: "Piassa, Addis Ababa", lat: 9.034, lon: 38.752 },
+  { name: "Merkato, Addis Ababa", lat: 9.030, lon: 38.742 },
+];
+
 function usePinIcon(dark: boolean) {
   const color = dark ? "#f2a93b" : "#b57614";
   return L.divIcon({
@@ -75,8 +83,11 @@ export function Report() {
     setSearching(true);
     try {
       const found = await api.geocodeSearch(query);
-      setResults(found);
-      setHighlighted(found.length > 0 ? 0 : -1);
+      const normalized = query.trim().toLowerCase();
+      const local = LOCAL_PLACES.filter((place) => place.name.toLowerCase().includes(normalized));
+      const merged = found.length > 0 ? found : local;
+      setResults(merged);
+      setHighlighted(merged.length > 0 ? 0 : -1);
     } catch {
       setResults([]);
     } finally {
@@ -131,6 +142,9 @@ export function Report() {
         ...(photoData ? { photo_data: photoData } : {}),
       });
       setDoneId(out.report_id);
+      // The dashboard owns the shared data poller. Notify it immediately so
+      // the new report is visible on the map when the user returns home.
+      window.dispatchEvent(new Event("tebaki-data-refresh"));
     } catch (e) {
       setError(
         String(e).includes("422")
@@ -155,8 +169,9 @@ export function Report() {
         <p className="num mt-2 text-sm text-primary">{doneId}</p>
         <div className="rule-dashed my-5" />
         <p className="text-sm leading-relaxed text-muted-foreground">
-          The guardian takes it from here. Tonight's run will triage it, cluster it with nearby
-          reports, and draft the complaint — you'll only be asked to approve the filing.
+          Your report is already visible on the map as new. The guardian is triaging it now;
+          the next processing run will group it with nearby reports and draft a complaint —
+          you'll only be asked to approve the filing.
         </p>
         <div className="mt-5 flex justify-center gap-2">
           <Button
@@ -304,6 +319,7 @@ export function Report() {
             attributionControl
           >
             <TileLayer
+              className={theme === "dark" ? "map-tiles-dark" : undefined}
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
@@ -414,9 +430,14 @@ export function Report() {
   );
 
   function locateMe() {
-    navigator.geolocation?.getCurrentPosition(
+    if (!navigator.geolocation) {
+      setError("Location access is not available in this browser. Search a place or tap the map instead.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
       (p) => setPos([p.coords.latitude, p.coords.longitude]),
-      () => setError("Couldn't read your location — search a place or tap the map instead."),
+      () => setError("Couldn't read your location — allow location access or search a place instead."),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
     );
   }
 }

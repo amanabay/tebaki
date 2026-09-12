@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     )
 
     # City pack selection
-    city_pack: str = Field(default="sandbox", description="Name of city pack under cities/")
+    city_pack: str = Field(default="addis", description="Name of city pack under cities/")
     cities_dir: Path = Field(default=_REPO_ROOT / "cities")
 
     # AWS / Bedrock

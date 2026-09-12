@@ -11,13 +11,13 @@ from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.geo import is_within_boundary, load_boundary_features
-from app.orchestrator import resolve_decision, run_chase, run_nightly_cycle
+from app.orchestrator import resolve_decision, run_chase, run_instant_triage, run_nightly_cycle
 from app.store import Report, get_store
 
 
@@ -59,7 +59,7 @@ def create_app() -> FastAPI:
     # --- intake -----------------------------------------------------------------
 
     @app.post("/reports", status_code=201)
-    def submit_report(body: ReportIn) -> dict[str, Any]:
+    def submit_report(body: ReportIn, background_tasks: BackgroundTasks) -> dict[str, Any]:
         # geo-fence: the guardian only watches inside the city boundary
         try:
             features = _boundary_features(settings.city_pack)
@@ -87,7 +87,8 @@ def create_app() -> FastAPI:
                 photo_key=body.photo_data,
             )
         )
-        return {"report_id": report.report_id, "status": report.status}
+        background_tasks.add_task(run_instant_triage, report.report_id)
+        return {"report_id": report.report_id, "status": report.status, "triage": "queued"}
 
     @app.get("/reports")
     def list_reports(limit: int = 100) -> list[dict[str, Any]]:

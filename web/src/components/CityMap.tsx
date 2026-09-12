@@ -146,6 +146,7 @@ export function CityMap({ data, onDataStale }: { data: MapData | null; onDataSta
         attributionControl
       >
         <TileLayer
+          className={dark ? "map-tiles-dark" : undefined}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url={tiles}
         />
