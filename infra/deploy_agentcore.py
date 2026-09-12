@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 
 REGION = "us-east-1"
-RUNTIME_NAME = "tebaki-engine"
+RUNTIME_NAME = "tebaki_engine"
 ECR_REPO = "tebaki-engine"
 IMAGE_TAG = "latest"
 ACCOUNT_ID = None  # resolved at runtime
@@ -112,6 +112,7 @@ def ensure_runtime(image_uri: str, role_arn: str) -> str:
                 agentRuntimeId=runtime_id,
                 agentRuntimeArtifact={"containerConfiguration": {"containerUri": image_uri}},
                 roleArn=role_arn,
+                networkConfiguration={"networkMode": "PUBLIC"},
                 protocolConfiguration={"serverProtocol": "HTTP"},
                 environmentVariables={
                     "TEBAKI_CITY_PACK": "addis",
@@ -128,6 +129,7 @@ def ensure_runtime(image_uri: str, role_arn: str) -> str:
         agentRuntimeName=RUNTIME_NAME,
         agentRuntimeArtifact={"containerConfiguration": {"containerUri": image_uri}},
         roleArn=role_arn,
+        networkConfiguration={"networkMode": "PUBLIC"},
         protocolConfiguration={"serverProtocol": "HTTP"},
         environmentVariables={
             "TEBAKI_CITY_PACK": "addis",
@@ -248,6 +250,27 @@ def ensure_role(account_id: str) -> str:
     sh([AWS, "iam", "attach-role-policy",
         "--role-name", role_name,
         "--policy-arn", f"arn:aws:iam::{account_id}:policy/{policy_name}"])
+    # AgentCore validates and pulls the image using the execution role. Keep
+    # these narrowly scoped ECR reads separate so existing policy versions do
+    # not need to be replaced on every deploy.
+    ecr_read_policy = {
+        "Version": "2012-10-17",
+        "Statement": [{
+            "Effect": "Allow",
+            "Action": [
+                "ecr:GetAuthorizationToken",
+                "ecr:BatchGetImage",
+                "ecr:GetDownloadUrlForLayer",
+            ],
+            "Resource": "*",
+        }],
+    }
+    sh([
+        AWS, "iam", "put-role-policy",
+        "--role-name", role_name,
+        "--policy-name", f"{role_name}-ECRRead",
+        "--policy-document", json.dumps(ecr_read_policy),
+    ])
     return role_arn
 
 
