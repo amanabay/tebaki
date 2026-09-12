@@ -84,6 +84,13 @@ function ReportPopup({
           {categoryLabel(report.category)} · sev {report.severity}
         </p>
         <p className="text-[11px] text-muted-foreground">{statusInfo(report.status).label}</p>
+        {report.triage_reason && (
+          <p className="border-l-2 border-primary/60 pl-2 text-[11px] leading-4 text-muted-foreground">
+            <span className="font-medium text-foreground">Guardian review: </span>
+            {report.triage_reason}
+            {report.triage_confidence != null && ` (${Math.round(report.triage_confidence * 100)}% confidence)`}
+          </p>
+        )}
         <p className="num text-[11px] text-muted-foreground">
           {count} neighbor{count === 1 ? "" : "s"} corroborated
         </p>
@@ -127,16 +134,30 @@ export function CityMap({ data, onDataStale }: { data: MapData | null; onDataSta
 
   const legend = useMemo(
     () => [
-      { label: "reports", shape: "dot", className: "bg-primary" },
+      { label: "new intake", shape: "dot", className: "bg-primary" },
+      { label: "guardian reviewed", shape: "dot", className: "bg-accent" },
       { label: "filed", shape: "ring", className: "border-status-filed" },
       { label: "escalated", shape: "ring", className: "border-status-escalated" },
       { label: "resolved", shape: "ring", className: "border-status-filed opacity-60" },
     ],
     [],
   );
+  const reportCount = data?.reports.length ?? 0;
+  const triagedCount = (data?.reports ?? []).filter((report) => report.status === "triaged").length;
+  const draftCount = (data?.complaints ?? []).filter((complaint) => complaint.status === "awaiting_approval").length;
 
   return (
     <div className="relative" role="region" aria-label="City map of reports and complaints">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[500] flex flex-wrap items-start justify-between gap-3 p-3">
+        <div className="rounded-lg border border-white/10 bg-black/75 px-3 py-2 text-white shadow-xl backdrop-blur-md">
+          <p className="micro-label text-white/60">live intake</p>
+          <p className="mt-0.5 text-sm font-semibold">{reportCount} report{reportCount === 1 ? "" : "s"} on the map</p>
+        </div>
+        <div className="flex gap-1.5 rounded-lg border border-white/10 bg-black/75 p-1.5 text-[11px] font-medium text-white shadow-xl backdrop-blur-md">
+          <span className="rounded bg-white/10 px-2 py-1">{triagedCount} reviewed</span>
+          <span className="rounded bg-primary/25 px-2 py-1 text-primary">{draftCount} need approval</span>
+        </div>
+      </div>
       <MapContainer
         center={CITY_CENTER}
         zoom={12}
@@ -158,9 +179,9 @@ export function CityMap({ data, onDataStale }: { data: MapData | null; onDataSta
             center={[r.lat, r.lon]}
             radius={4 + r.severity}
             pathOptions={{
-              color: statusMapColor("pending", dark),
+              color: statusMapColor(r.status, dark),
               weight: 1,
-              fillColor: statusMapColor("pending", dark),
+              fillColor: statusMapColor(r.status, dark),
               fillOpacity: 0.55,
             }}
           >

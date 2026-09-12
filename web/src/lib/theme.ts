@@ -7,7 +7,7 @@ const KEY = "tebaki-theme";
 function initial(): Theme {
   const stored = localStorage.getItem(KEY);
   if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return "dark";
 }
 
 /** Apply theme with transition suppression to avoid a smeared flip. */
@@ -18,7 +18,7 @@ function apply(theme: Theme) {
   document.head.appendChild(suppress);
   root.classList.toggle("dark", theme === "dark");
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", theme === "dark" ? "#1c1408" : "#f8f4ec");
+  if (meta) meta.setAttribute("content", theme === "dark" ? "#1d1a17" : "#f5f1e9");
   // force reflow, then restore transitions next frame
   void root.offsetHeight;
   requestAnimationFrame(() => requestAnimationFrame(() => suppress.remove()));

@@ -65,6 +65,8 @@ export interface MapData {
     status: string;
     severity: number;
     plus_ones: number;
+    triage_confidence?: number | null;
+    triage_reason?: string | null;
   }>;
   complaints: Array<{
     complaint_id: string;

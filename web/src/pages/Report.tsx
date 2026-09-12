@@ -169,9 +169,8 @@ export function Report() {
         <p className="num mt-2 text-sm text-primary">{doneId}</p>
         <div className="rule-dashed my-5" />
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Your report is already visible on the map as new. The guardian is triaging it now;
-          the next processing run will group it with nearby reports and draft a complaint —
-          you'll only be asked to approve the filing.
+          Your report is now on the operations map. The guardian reviews it automatically;
+          when related reports form a case, a draft appears in Decisions for human approval.
         </p>
         <div className="mt-5 flex justify-center gap-2">
           <Button
@@ -187,7 +186,7 @@ export function Report() {
             Report another
           </Button>
           <Button asChild>
-            <Link to="/ledger">See the ledger</Link>
+            <Link to="/">Open operations map</Link>
           </Button>
         </div>
       </div>

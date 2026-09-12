@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Activity, DatabaseZap, FastForward, List, Map as MapIcon, Radar } from "lucide-react";
+import { Activity, CheckCircle2, CircleDot, FilePenLine, List, Map as MapIcon, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CityMap } from "@/components/CityMap";
 import { NightLog, NightLogHeader } from "@/components/NightLog";
@@ -47,58 +47,42 @@ function ShiftBar({
   message,
   onNightly,
   onChase,
-  onSeed,
-  onMissSla,
-  canMissSla,
+  reportCount,
+  reviewCount,
 }: {
-  busy: "nightly" | "chase" | "seed" | "miss-sla" | null;
+  busy: "nightly" | "chase" | null;
   message: string | null;
   onNightly: () => void;
   onChase: () => void;
-  onSeed: () => void;
-  onMissSla: () => void;
-  canMissSla: boolean;
+  reportCount: number;
+  reviewCount: number;
 }) {
   return (
-    <section className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-surface-1 px-5 py-5 shadow-sm sm:px-6">
-      <div className="absolute inset-y-0 left-0 w-1 bg-primary" aria-hidden="true" />
-      <div className="flex flex-wrap items-center justify-between gap-5">
-        <div className="max-w-xl">
-          <div className="mb-2 flex items-center gap-2 text-primary">
-            <Radar className="size-4" aria-hidden="true" />
-            <p className="micro-label text-primary">Neighborhood operations</p>
+    <section className="mb-6 overflow-hidden rounded-2xl border border-border bg-surface-1 shadow-sm">
+      <div className="border-b border-border bg-surface-2/70 px-5 py-4 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="micro-label text-primary">Operations desk</p>
+            <h1 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">From signal to civic case.</h1>
           </div>
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Keep every civic issue moving.</h1>
-          <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
-            Turn resident reports into coordinated cases, then check every open deadline.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-        <span
-          role="status"
-          aria-live="polite"
-          className="basis-full text-left text-xs text-muted-foreground lg:basis-auto lg:text-right"
-        >
-          {message}
-        </span>
-        <Button onClick={onNightly} disabled={busy !== null}>
-          <Activity className="size-4" aria-hidden="true" />
-          {busy === "nightly" ? "Processing…" : "Process new reports"}
-        </Button>
-        <Button variant="outline" onClick={onChase} disabled={busy !== null}>
-          <Radar className="size-4" aria-hidden="true" />
-          {busy === "chase" ? "Checking…" : "Check deadlines"}
-        </Button>
-        <Button variant="ghost" onClick={onSeed} disabled={busy !== null}>
-          <DatabaseZap className="size-4" aria-hidden="true" />
-          {busy === "seed" ? "Loading…" : "Load sample reports"}
-        </Button>
-        <Button variant="ghost" onClick={onMissSla} disabled={busy !== null || !canMissSla}>
-          <FastForward className="size-4" aria-hidden="true" />
-          {busy === "miss-sla" ? "Advancing…" : "Demo: miss SLA"}
-        </Button>
+          <div className="flex gap-2">
+            <Button onClick={onNightly} disabled={busy !== null}>
+              <Activity className="size-4" aria-hidden="true" />
+              {busy === "nightly" ? "Building cases…" : "Create case run"}
+            </Button>
+            <Button variant="outline" onClick={onChase} disabled={busy !== null}>
+              <Radar className="size-4" aria-hidden="true" />
+              {busy === "chase" ? "Checking…" : "Check deadlines"}
+            </Button>
+          </div>
         </div>
       </div>
+      <div className="grid divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <div className="p-4 sm:p-5"><CircleDot className="size-4 text-primary" aria-hidden="true" /><p className="mt-3 text-sm font-semibold">1. Reports arrive</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{reportCount} visible on the map. Initial AI review happens automatically.</p></div>
+        <div className="p-4 sm:p-5"><FilePenLine className="size-4 text-status-pending" aria-hidden="true" /><p className="mt-3 text-sm font-semibold">2. Cases are prepared</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Run the case builder to group related reports and produce an evidence-backed draft.</p></div>
+        <div className="p-4 sm:p-5"><CheckCircle2 className="size-4 text-status-filed" aria-hidden="true" /><p className="mt-3 text-sm font-semibold">3. You approve filing</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{reviewCount} draft{reviewCount === 1 ? "" : "s"} waiting for your review. Nothing is filed without it.</p></div>
+      </div>
+      {message && <p role="status" aria-live="polite" className="border-t border-border px-5 py-3 text-sm text-muted-foreground sm:px-6">{message}</p>}
     </section>
   );
 }
@@ -215,9 +199,13 @@ function LedgerTable({
         total={ledger.length}
       />
       {ledger.length === 0 ? (
-        <p className="p-6 text-sm text-muted-foreground">
-          No cases yet. Report an issue, then process new reports to prepare it for review.
-        </p>
+        <div className="p-6">
+          <p className="font-medium">No cases have been created yet.</p>
+          <p className="mt-1 max-w-lg text-sm leading-6 text-muted-foreground">
+            Reports appear on the map immediately. A case enters this register after the guardian
+            groups related reports and a reviewer approves the drafted filing.
+          </p>
+        </div>
       ) : filtered.length === 0 ? (
         <p className="p-6 text-sm text-muted-foreground">
           No complaints match this filter.{" "}
@@ -298,7 +286,7 @@ export function Dashboard({
   initialView?: "map" | "ledger";
 }) {
   const [view, setView] = useState<"map" | "ledger">(initialView);
-  const [busy, setBusy] = useState<"nightly" | "chase" | "seed" | "miss-sla" | null>(null);
+  const [busy, setBusy] = useState<"nightly" | "chase" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const loading = data.online === null;
@@ -345,40 +333,6 @@ export function Dashboard({
     }
   };
 
-  const seedDemo = async () => {
-    setBusy("seed");
-    setMessage(null);
-    try {
-      const result = await api.seedDemo();
-      setMessage(
-        result.added.length
-          ? `${result.added.length} sample reports loaded. Process new reports when you're ready.`
-          : "Demo reports are already loaded.",
-      );
-      data.refresh();
-    } catch {
-      setMessage("Demo data is available only on the sandbox city pack.");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const missDemoSla = async () => {
-    setBusy("miss-sla");
-    setMessage(null);
-    try {
-      const result = await api.missDemoDeadlines();
-      setMessage(
-        `${result.affected.length} case${result.affected.length === 1 ? " is" : "s are"} now past the SLA. Check deadlines to trigger the agent.`,
-      );
-      data.refresh();
-    } catch {
-      setMessage("File a sandbox case before using the missed-SLA demo control.");
-    } finally {
-      setBusy(null);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {data.online === false && (
@@ -395,11 +349,8 @@ export function Dashboard({
         message={message}
         onNightly={runNightly}
         onChase={runChase}
-        onSeed={seedDemo}
-        onMissSla={missDemoSla}
-        canMissSla={data.ledger.some((caseItem) =>
-          ["filed", "acknowledged", "escalated"].includes(statusKind(caseItem.status)),
-        )}
+        reportCount={data.mapData?.reports.length ?? 0}
+        reviewCount={data.decisions.length}
       />
       <StatStrip ledger={data.ledger} pendingCount={data.decisions.length} loading={loading} />
 

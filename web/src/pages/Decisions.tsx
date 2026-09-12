@@ -313,9 +313,12 @@ export function Decisions({ data }: { data: EngineData }) {
           <MoonStar className="mx-auto size-8 text-primary" aria-hidden="true" />
           <h2 className="mt-3 font-serif text-lg font-semibold">Nothing waiting on you.</h2>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-            The guardian is caught up. New complaint drafts pause here for your approval before
-            they're filed.
+            New reports are reviewed on the map first. Complaint drafts appear here only after a
+            processing run groups nearby reports into one case.
           </p>
+          <Link to="/" className="mt-4 inline-block text-sm font-semibold text-primary underline-offset-4 hover:underline">
+            Go to the operations map
+          </Link>
         </div>
       ) : (
         <div className="space-y-5">

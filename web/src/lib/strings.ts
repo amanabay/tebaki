@@ -58,7 +58,15 @@ export function statusKind(status: string): StatusKind {
 export function statusInfo(status: string): { label: string; className: string } {
   const meta = STATUS_META[statusKind(status)];
   const label =
-    status.startsWith("escalated")
+    status === "new"
+      ? "NEW REPORT"
+      : status === "triaged"
+        ? "REVIEWED"
+        : status === "clustered"
+          ? "CASE BUILDING"
+          : status === "awaiting_approval"
+            ? "AWAITING APPROVAL"
+    : status.startsWith("escalated")
       ? `ESCALATED L${status.split("_")[1]}`
       : meta.label;
   return { label, className: meta.className };
@@ -133,6 +141,9 @@ export const STATUS_META: Record<StatusKind, StatusMeta> = {
 
 /** Map colors resolved for the current theme (Leaflet needs literals). */
 export function statusMapColor(status: string, dark: boolean): string {
+  // An initial report and a reviewed report are both awaiting a case, but
+  // they need distinct map marks so the guardian's completed work is legible.
+  if (status === "triaged") return dark ? "#b7d85a" : "#587314";
   const meta = STATUS_META[statusKind(status)];
   return dark ? meta.mapDark : meta.mapLight;
 }
