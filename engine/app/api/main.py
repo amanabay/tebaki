@@ -474,6 +474,7 @@ def create_app() -> FastAPI:
         email_live = bool(os.getenv("TEBAKI_SMTP_HOST") or os.getenv("TEBAKI_SES_FROM"))
         try:
             pack = load_city_pack(settings.cities_dir.resolve(), settings.city_pack)
+            city_name = pack.city.name
             coverage = pack.coverage
             coverage_state = "ready" if coverage.status == "verified" else "attention"
             coverage_detail = (
@@ -482,6 +483,7 @@ def create_app() -> FastAPI:
                 else "City-level fallback is active; sub-city polygons are not yet vendored."
             )
         except Exception:  # noqa: BLE001 — diagnostics must remain available during bad pack deploys
+            city_name = settings.city_pack
             coverage_state = "attention"
             coverage_detail = "City pack could not be loaded; geographic claims are unverified."
         # These checks describe configuration and recovery guarantees without
@@ -497,7 +499,7 @@ def create_app() -> FastAPI:
             ]
         return {
             "checked_at": now,
-            "city": settings.city_pack,
+            "city": city_name,
             "model_mode": model_mode(),
             "persistence": "dynamodb" if persistent else "memory",
             "delivery_mode": "real" if email_live else ("simulated" if settings.city_pack == "sandbox" else "dry_run"),
