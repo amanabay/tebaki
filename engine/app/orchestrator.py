@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from typing import Any
 
 from app.agents.model_factory import model_mode
@@ -188,11 +189,23 @@ def run_nightly_cycle(
             for complaint in drafts
         ]
     }
+    # Nova tool-use formatting is provider-dependent. Keep the live default
+    # on the bounded coordinator so a malformed optional tool turn cannot
+    # take down the core triage/draft/approval pipeline. Set
+    # TEBAKI_LIVE_COORDINATOR=1 to exercise the live coordinator explicitly.
+    use_live_coordinator = model_mode() == "scripted" or os.getenv("TEBAKI_LIVE_COORDINATOR", "") == "1"
     try:
+        if not use_live_coordinator:
+            raise RuntimeError("live coordinator opt-in disabled")
         coordinator = coordinator_agent()
         run_sync(lambda: coordinator.invoke_async(json.dumps(coordinator_payload)))
     except Exception as exc:  # noqa: BLE001 — deterministic recommendation keeps the run useful
-        run.add_event("coordinator_failed", actor="tebaki-coordinator", error=str(exc)[:160], resulting_action="used bounded fallback")
+        run.add_event(
+            "coordinator_fallback" if not use_live_coordinator else "coordinator_failed",
+            actor="tebaki-coordinator",
+            error=(str(exc)[:160] if use_live_coordinator else "live coordinator opt-in disabled"),
+            resulting_action="used bounded fallback",
+        )
         for complaint in drafts:
             suggestion = coordinator_recommendation(complaint)
             complaint.coordinator_recommendation = suggestion["recommendation"]
