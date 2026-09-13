@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Clock, Send, Users } from "lucide-react";
+import { ArrowLeft, Clock, HeartHandshake, Send, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusStamp } from "@/components/StatusStamp";
@@ -108,6 +108,11 @@ export function CaseFilePage() {
   const { complaintId } = useParams<{ complaintId: string }>();
   const [file, setFile] = useState<CaseFile | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [supporting, setSupporting] = useState(false);
+  const [ownerName, setOwnerName] = useState("");
+  const [nextAction, setNextAction] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
 
   const reload = () => {
     if (!complaintId) return;
@@ -175,6 +180,44 @@ export function CaseFilePage() {
       </header>
 
       <div className="space-y-8 py-6">
+        <section className="rounded-md border border-primary/30 bg-primary/5 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="micro-label text-primary">neighborhood action</p>
+              <h2 className="mt-0.5 font-serif text-lg font-semibold">Keep this issue visible</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Corroborate this case so the team knows how many neighbors are affected.</p>
+            </div>
+            <Button
+              variant="outline"
+              disabled={supporting}
+              onClick={() => { setSupporting(true); api.supportCase(file.complaint_id).then(reload).finally(() => setSupporting(false)); }}
+            >
+              <HeartHandshake className="size-4" aria-hidden="true" />
+              {supporting ? "Adding…" : `Support · ${file.support_count ?? file.plus_ones}`}
+            </Button>
+          </div>
+          {(file.owner_name || file.next_action) && (
+            <div className="mt-4 grid gap-3 border-t border-primary/20 pt-3 text-sm sm:grid-cols-2">
+              <p><span className="micro-label block">community steward</span>{file.owner_name ?? "Unassigned"}{file.owner_role ? ` · ${file.owner_role}` : ""}</p>
+              <p><span className="micro-label block">next action</span>{file.next_action ?? "The guardian is preparing the next update."}</p>
+            </div>
+          )}
+          <details className="mt-4 border-t border-primary/20 pt-3">
+            <summary className="cursor-pointer text-xs font-semibold text-primary">Assign a community steward</summary>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <input aria-label="Steward name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Steward name" className="min-h-10 rounded-md border border-border bg-background px-3 text-sm" />
+              <input aria-label="Next action" value={nextAction} onChange={(e) => setNextAction(e.target.value)} placeholder="Next action" className="min-h-10 rounded-md border border-border bg-background px-3 text-sm" />
+            </div>
+            {assignError && <p className="mt-2 text-xs text-destructive">{assignError}</p>}
+            <Button className="mt-2" size="sm" disabled={assigning || !ownerName.trim() || !nextAction.trim()} onClick={() => {
+              setAssigning(true); setAssignError(null);
+              api.assignSteward(file.complaint_id, { owner_name: ownerName, owner_role: "community steward", next_action: nextAction })
+                .then(reload).catch((err) => setAssignError(err instanceof Error ? err.message : "Operator access required"))
+                .finally(() => setAssigning(false));
+            }}>{assigning ? "Assigning…" : "Save assignment"}</Button>
+          </details>
+        </section>
+
         <CaseTimeline events={file.timeline} />
 
         {/* the complaint text */}

@@ -239,7 +239,22 @@ export const api = {
       `/admin/complaints/${complaintId}/status`,
       { method: "POST", body: JSON.stringify({ status, note }) },
     ),
+  supportCase: (complaintId: string) =>
+    json<{ complaint_id: string; support_count: number }>(`/public/complaints/${complaintId}/support`, { method: "POST" }),
+  communityDigest: () => json<CommunityDigest>("/public/community-digest"),
+  assignSteward: (complaintId: string, payload: { owner_name: string; owner_role: string; next_action: string; next_action_due?: string }) =>
+    json<Record<string, string>>(`/admin/complaints/${complaintId}/assignment`, { method: "POST", body: JSON.stringify(payload) }),
 };
+
+export interface CommunityDigest {
+  total_cases: number;
+  needs_corroboration: number;
+  open_cases: number;
+  resolved_cases: number;
+  steward_assigned: number;
+  residents_involved: number;
+  recent_updates: Array<{ complaint_id: string; at: string; kind: string; actor: string; message: string }>;
+}
 
 export interface CaseFile {
   complaint_id: string;
@@ -290,4 +305,11 @@ export interface CaseFile {
     delivered: boolean | null;
   }>;
   created_at: string;
+  owner_name?: string | null;
+  owner_role?: string | null;
+  next_action?: string | null;
+  next_action_due?: string | null;
+  community_status?: string | null;
+  support_count?: number;
+  community_updates?: Array<{ at: string; kind: string; actor: string; message: string }>;
 }

@@ -168,6 +168,13 @@ class Complaint:
         escalation_log: list[dict[str, Any]] | None = None,
         acknowledged_note: str | None = None,
         resolved_note: str | None = None,
+        owner_name: str | None = None,
+        owner_role: str | None = None,
+        next_action: str | None = None,
+        next_action_due: str | None = None,
+        community_status: str = "needs_attention",
+        support_count: int = 0,
+        community_updates: list[dict[str, Any]] | None = None,
         created_at: str | None = None,
     ) -> None:
         self.complaint_id = complaint_id or f"C-{uuid4().hex[:8].upper()}"
@@ -189,6 +196,13 @@ class Complaint:
         self.escalation_log = escalation_log or []
         self.acknowledged_note = acknowledged_note
         self.resolved_note = resolved_note
+        self.owner_name = owner_name
+        self.owner_role = owner_role
+        self.next_action = next_action
+        self.next_action_due = next_action_due
+        self.community_status = community_status
+        self.support_count = support_count
+        self.community_updates = community_updates or []
         self.created_at = created_at or _now()
 
     def to_dict(self) -> dict[str, Any]:
@@ -210,6 +224,13 @@ class Complaint:
             "escalation_log": self.escalation_log,
             "acknowledged_note": self.acknowledged_note,
             "resolved_note": self.resolved_note,
+            "owner_name": self.owner_name,
+            "owner_role": self.owner_role,
+            "next_action": self.next_action,
+            "next_action_due": self.next_action_due,
+            "community_status": self.community_status,
+            "support_count": self.support_count,
+            "community_updates": self.community_updates,
             "created_at": self.created_at,
         }
 
@@ -233,6 +254,13 @@ class Complaint:
             escalation_log=data.get("escalation_log", []),
             acknowledged_note=data.get("acknowledged_note"),
             resolved_note=data.get("resolved_note"),
+            owner_name=data.get("owner_name"),
+            owner_role=data.get("owner_role"),
+            next_action=data.get("next_action"),
+            next_action_due=data.get("next_action_due"),
+            community_status=data.get("community_status", "needs_attention"),
+            support_count=int(data.get("support_count", 0)),
+            community_updates=data.get("community_updates", []),
             created_at=data.get("created_at"),
         )
 

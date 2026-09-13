@@ -21,7 +21,7 @@ _secrets = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION", "u
 OPERATOR_TOKEN = os.getenv("TEBAKI_OPERATOR_TOKEN", "")
 OPERATOR_SECRET_ARN = os.getenv("TEBAKI_OPERATOR_SECRET_ARN", "")
 _cached_operator_token: str | None = None
-PUBLIC_PATHS = {"/health", "/public/ledger", "/public/scoreboard", "/public/activity", "/public/map", "/public/impact", "/public/proof", "/public/diagnostics", "/public/runs", "/reports"}
+PUBLIC_PATHS = {"/health", "/public/ledger", "/public/scoreboard", "/public/activity", "/public/map", "/public/impact", "/public/proof", "/public/diagnostics", "/public/runs", "/public/community-digest", "/reports"}
 
 
 def _is_public(path: str) -> bool:

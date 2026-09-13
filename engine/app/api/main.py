@@ -21,6 +21,7 @@ from app.city_pack import load_city_pack
 from app.config import settings
 from app.geo import is_within_boundary, load_boundary_features
 from app.orchestrator import resolve_decision, run_chase, run_instant_triage, run_nightly_cycle
+from app.safety import redact_pii
 from app.store import Report, get_store
 
 
@@ -38,6 +39,18 @@ class ReportIn(BaseModel):
 class ResolveIn(BaseModel):
     action: str = Field(pattern="^(approve|edit|drop)$")
     fields: dict[str, Any] | None = None
+
+
+class AssignmentIn(BaseModel):
+    owner_name: str = Field(min_length=1, max_length=100)
+    owner_role: str = Field(default="community steward", max_length=80)
+    next_action: str = Field(min_length=1, max_length=300)
+    next_action_due: str | None = Field(default=None, max_length=40)
+
+
+class CommunityUpdateIn(BaseModel):
+    message: str = Field(min_length=1, max_length=500)
+    actor: str = Field(default="community steward", max_length=80)
 
 
 def _run_events() -> list[dict[str, Any]]:
@@ -355,7 +368,47 @@ def create_app() -> FastAPI:
             },
             "timeline": sorted(timeline, key=lambda event: str(event.get("at", ""))),
             "escalation_log": complaint.escalation_log,
+            "owner_name": complaint.owner_name,
+            "owner_role": complaint.owner_role,
+            "next_action": complaint.next_action,
+            "next_action_due": complaint.next_action_due,
+            "community_status": complaint.community_status,
+            "support_count": complaint.support_count,
+            "community_updates": complaint.community_updates,
             "created_at": complaint.created_at,
+        }
+
+    @app.get("/public/complaints/{complaint_id}/updates")
+    def community_updates(complaint_id: str) -> list[dict[str, Any]]:
+        complaint = get_store().get_complaint(complaint_id)
+        if complaint is None:
+            raise HTTPException(status_code=404, detail=f"unknown complaint {complaint_id}")
+        return complaint.community_updates
+
+    @app.post("/public/complaints/{complaint_id}/support")
+    def support_case(complaint_id: str) -> dict[str, Any]:
+        complaint = get_store().get_complaint(complaint_id)
+        if complaint is None:
+            raise HTTPException(status_code=404, detail=f"unknown complaint {complaint_id}")
+        complaint.support_count += 1
+        complaint.community_status = "corroborated"
+        get_store().save_complaint(complaint)
+        return {"complaint_id": complaint_id, "support_count": complaint.support_count}
+
+    @app.get("/public/community-digest")
+    def community_digest() -> dict[str, Any]:
+        complaints = get_store().list_complaints()
+        return {
+            "total_cases": len(complaints),
+            "needs_corroboration": sum(c.support_count == 0 for c in complaints),
+            "open_cases": sum(c.status not in {"resolved", "dropped"} for c in complaints),
+            "resolved_cases": sum(c.status == "resolved" for c in complaints),
+            "steward_assigned": sum(bool(c.owner_name) for c in complaints),
+            "residents_involved": sum(len(c.report_refs) + c.support_count for c in complaints),
+            "recent_updates": sorted(
+                [u | {"complaint_id": c.complaint_id} for c in complaints for u in c.community_updates],
+                key=lambda u: str(u.get("at", "")), reverse=True,
+            )[:20],
         }
 
     @app.get("/public/scoreboard")
@@ -597,6 +650,37 @@ def create_app() -> FastAPI:
             "ticket_status": complaint.ticket_status,
         }
 
+    @app.post("/admin/complaints/{complaint_id}/assignment")
+    def assign_community_steward(complaint_id: str, body: AssignmentIn) -> dict[str, Any]:
+        complaint = get_store().get_complaint(complaint_id)
+        if complaint is None:
+            raise HTTPException(status_code=404, detail=f"unknown complaint {complaint_id}")
+        complaint.owner_name = body.owner_name
+        complaint.owner_role = body.owner_role
+        complaint.next_action = body.next_action
+        complaint.next_action_due = body.next_action_due
+        complaint.community_status = "steward_assigned"
+        message, flags = redact_pii(f"{body.owner_name} assigned as {body.owner_role}. Next: {body.next_action}")
+        complaint.community_updates.append({"at": datetime.now(UTC).isoformat(), "kind": "steward_assigned", "actor": "operator", "message": message, "privacy_flags": flags})
+        get_store().save_complaint(complaint)
+        return {"complaint_id": complaint_id, "owner_name": complaint.owner_name, "next_action": complaint.next_action, "community_status": complaint.community_status}
+
+    @app.post("/admin/complaints/{complaint_id}/community-update")
+    def add_community_update(complaint_id: str, body: CommunityUpdateIn) -> dict[str, Any]:
+        complaint = get_store().get_complaint(complaint_id)
+        if complaint is None:
+            raise HTTPException(status_code=404, detail=f"unknown complaint {complaint_id}")
+        message, flags = redact_pii(body.message)
+        update = {"at": datetime.now(UTC).isoformat(), "kind": "community_update", "actor": body.actor, "message": message, "privacy_flags": flags}
+        complaint.community_updates.append(update)
+        complaint.community_status = "updated"
+        get_store().save_complaint(complaint)
+        return update
+
+    @app.post("/admin/complaints/{complaint_id}/next-action")
+    def set_next_action(complaint_id: str, body: AssignmentIn) -> dict[str, Any]:
+        return assign_community_steward(complaint_id, body)
+
     @app.post("/admin/nightly")
     def run_nightly(body: NightlyIn | None = None) -> dict[str, Any]:
         auto_approve = body.auto_approve if body else None
@@ -648,9 +732,14 @@ def create_app() -> FastAPI:
         if method == "GET" and path.startswith("/public/reports/") and path.endswith("/timeline"):
             report_id = path.removeprefix("/public/reports/").removesuffix("/timeline").strip("/")
             return report_timeline(report_id)
+        if method == "GET" and path.startswith("/public/complaints/") and path.endswith("/updates"):
+            complaint_id = path.removeprefix("/public/complaints/").removesuffix("/updates").strip("/")
+            return community_updates(complaint_id)
         if method == "GET" and path.startswith("/public/complaints/"):
             complaint_id = path.removeprefix("/public/complaints/").strip("/")
             return case_file(complaint_id)
+        if method == "GET" and path == "/public/community-digest":
+            return community_digest()
         if method == "GET" and path == "/decisions":
             return pending_decisions()
         if method == "GET" and path == "/reports":
@@ -664,6 +753,9 @@ def create_app() -> FastAPI:
         if method == "POST" and path.startswith("/reports/") and path.endswith("/plus-one"):
             report_id = path.removeprefix("/reports/").removesuffix("/plus-one").strip("/")
             return plus_one(report_id)
+        if method == "POST" and path.startswith("/public/complaints/") and path.endswith("/support"):
+            complaint_id = path.removeprefix("/public/complaints/").removesuffix("/support").strip("/")
+            return support_case(complaint_id)
         if method == "POST" and path.startswith("/decisions/") and path.endswith("/resolve"):
             card_id = path.removeprefix("/decisions/").removesuffix("/resolve").strip("/")
             return resolve(card_id, ResolveIn.model_validate(body.get("body") or {}))
@@ -679,6 +771,15 @@ def create_app() -> FastAPI:
         if method == "POST" and path.startswith("/admin/complaints/") and path.endswith("/status"):
             complaint_id = path.removeprefix("/admin/complaints/").removesuffix("/status").strip("/")
             return set_complaint_status(complaint_id, StatusIn.model_validate(body.get("body") or {}))
+        if method == "POST" and path.startswith("/admin/complaints/") and path.endswith("/assignment"):
+            complaint_id = path.removeprefix("/admin/complaints/").removesuffix("/assignment").strip("/")
+            return assign_community_steward(complaint_id, AssignmentIn.model_validate(body.get("body") or {}))
+        if method == "POST" and path.startswith("/admin/complaints/") and path.endswith("/community-update"):
+            complaint_id = path.removeprefix("/admin/complaints/").removesuffix("/community-update").strip("/")
+            return add_community_update(complaint_id, CommunityUpdateIn.model_validate(body.get("body") or {}))
+        if method == "POST" and path.startswith("/admin/complaints/") and path.endswith("/next-action"):
+            complaint_id = path.removeprefix("/admin/complaints/").removesuffix("/next-action").strip("/")
+            return set_next_action(complaint_id, AssignmentIn.model_validate(body.get("body") or {}))
         action = str(body.get("action", "health"))
         if action in {"health", "ping"}:
             return health()
