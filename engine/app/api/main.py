@@ -646,6 +646,9 @@ def create_app() -> FastAPI:
         if method == "GET" and path.startswith("/public/reports/") and path.endswith("/timeline"):
             report_id = path.removeprefix("/public/reports/").removesuffix("/timeline").strip("/")
             return report_timeline(report_id)
+        if method == "GET" and path.startswith("/public/complaints/"):
+            complaint_id = path.removeprefix("/public/complaints/").strip("/")
+            return case_file(complaint_id)
         if method == "GET" and path == "/decisions":
             return pending_decisions()
         if method == "GET" and path == "/reports":
