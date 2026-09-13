@@ -96,8 +96,15 @@ function DecisionCardView({
         const outcome = await api.resolveDecision(card.card_id, action, fields);
         setResolved({ outcome });
         onResolved();
-      } catch {
-        setError("Couldn't file the complaint. Check the engine is running and try again.");
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : "";
+        if (/401|403|operator authorization/i.test(detail)) {
+          setError("Operator access is required. Select the shield in the top bar and enter the operator token, then try again.");
+        } else if (/502|runtime unavailable|agent runtime/i.test(detail)) {
+          setError("The guardian runtime could not complete this filing. Your approval is preserved; wait a moment and try again, or open System for diagnostics.");
+        } else {
+          setError(`Couldn't file the complaint${detail ? ` (${detail.slice(0, 140)})` : ""}. Your approval was not applied; try again.`);
+        }
         setBusy(false);
       }
     },
