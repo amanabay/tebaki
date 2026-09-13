@@ -74,8 +74,16 @@ function DecisionCardView({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [subject, setSubject] = useState(card.draft.subject);
-  const [text, setText] = useState(card.draft.text);
+  // Drafts can be created by a live model. Treat absent optional metadata as
+  // reviewable, rather than allowing one imperfect response to break the app.
+  const subjectValue = card.draft.subject?.trim() || "Untitled complaint draft";
+  const textValue = card.draft.text?.trim() || "No complaint text was returned. Edit before filing.";
+  const reportRefs = Array.isArray(card.draft.report_refs) ? card.draft.report_refs : [];
+  const severity = Number.isFinite(card.draft.severity)
+    ? Math.min(5, Math.max(1, Number(card.draft.severity)))
+    : 3;
+  const [subject, setSubject] = useState(subjectValue);
+  const [text, setText] = useState(textValue);
   const [resolved, setResolved] = useState<ResolvedState | null>(null);
   const [confirmingDrop, setConfirmingDrop] = useState(false);
 
@@ -144,10 +152,10 @@ function DecisionCardView({
         ) : (
           <>
             <h2 className="text-lg leading-snug font-semibold text-balance">
-              {card.draft.subject}
+              {subjectValue}
             </h2>
             <p className="text-sm leading-relaxed text-pretty text-muted-foreground">
-              {card.draft.text}
+              {textValue}
             </p>
           </>
         )}
@@ -156,25 +164,25 @@ function DecisionCardView({
         <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
           <div>
             <dt className="micro-label">ward</dt>
-            <dd className="mt-0.5 truncate" title={String(card.context.ward ?? "—")}>
-              {String(card.context.ward ?? "—")}
+            <dd className="mt-0.5 truncate" title={String(card.draft.ward ?? card.context.ward ?? "—")}>
+              {String(card.draft.ward ?? card.context.ward ?? "—")}
             </dd>
           </div>
           <div>
             <dt className="micro-label">category</dt>
             <dd className="mt-0.5">
-              {card.draft.category}
+              {card.draft.category ?? "Unclassified"}
             </dd>
           </div>
           <div>
             <dt className="micro-label">severity</dt>
             <dd className="mt-1.5">
-              <SeverityDots level={card.draft.severity} />
+              <SeverityDots level={severity} />
             </dd>
           </div>
           <div>
             <dt className="micro-label">reports</dt>
-            <dd className="num mt-0.5 text-[12px]">{card.draft.report_refs.length} merged</dd>
+            <dd className="num mt-0.5 text-[12px]">{reportRefs.length || "—"} merged</dd>
           </div>
         </dl>
 

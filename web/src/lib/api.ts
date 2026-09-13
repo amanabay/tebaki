@@ -150,14 +150,14 @@ export interface DecisionCard {
   created_at: string;
   draft: {
     complaint_id: string;
-    category: string;
-    severity: number;
-    report_refs: string[];
-    lat: number;
-    lon: number;
-    ward: string;
-    subject: string;
-    text: string;
+    category?: string | null;
+    severity?: number | null;
+    report_refs?: string[] | null;
+    lat?: number | null;
+    lon?: number | null;
+    ward?: string | null;
+    subject?: string | null;
+    text?: string | null;
     cite?: string | null;
     duplicates_note?: string | null;
   };
