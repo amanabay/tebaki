@@ -1,4 +1,10 @@
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+// Keep local development zero-config while ensuring a production build never
+// silently points a deployed browser at localhost.
+const API_URL = import.meta.env.VITE_API_URL ?? (
+  import.meta.env.PROD
+    ? "https://pxgwrenfrk.execute-api.us-east-1.amazonaws.com"
+    : "http://localhost:8000"
+);
 const OPERATOR_TOKEN_KEY = "tebaki.operator-token";
 
 export function operatorToken(): string | null {
