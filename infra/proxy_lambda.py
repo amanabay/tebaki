@@ -25,7 +25,7 @@ PUBLIC_PATHS = {"/health", "/public/ledger", "/public/scoreboard", "/public/acti
 
 
 def _is_public(path: str) -> bool:
-    return path in PUBLIC_PATHS or path.startswith(("/public/runs/", "/public/reports/", "/public/complaints/"))
+    return path in PUBLIC_PATHS or path.startswith(("/public/runs/", "/public/reports/", "/public/complaints/", "/reports/") )
 
 
 def _response(status: int, body: Any) -> dict[str, Any]:

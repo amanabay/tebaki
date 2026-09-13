@@ -603,7 +603,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     @app.post("/invocations")
-    def agentcore_invocation(body: dict[str, Any]) -> dict[str, Any]:
+    def agentcore_invocation(body: dict[str, Any]) -> Any:
         # AgentCore receives a small HTTP-style envelope from the browser-safe
         # proxy.  Keep the older action-only form for CLI smoke tests.
         method = str(body.get("method", "")).upper()
@@ -642,6 +642,9 @@ def create_app() -> FastAPI:
             # FastAPI background tasks, so complete instant triage explicitly.
             run_instant_triage(str(report_response["report_id"]))
             return report_response
+        if method == "POST" and path.startswith("/reports/") and path.endswith("/plus-one"):
+            report_id = path.removeprefix("/reports/").removesuffix("/plus-one").strip("/")
+            return plus_one(report_id)
         if method == "POST" and path.startswith("/decisions/") and path.endswith("/resolve"):
             card_id = path.removeprefix("/decisions/").removesuffix("/resolve").strip("/")
             return resolve(card_id, ResolveIn.model_validate(body.get("body") or {}))
@@ -650,6 +653,13 @@ def create_app() -> FastAPI:
             return run_nightly(NightlyIn.model_validate(payload))
         if method == "POST" and path == "/admin/chase":
             return chase()
+        if method == "POST" and path == "/admin/demo/seed":
+            return seed_demo()
+        if method == "POST" and path == "/admin/demo/miss-deadlines":
+            return miss_demo_deadlines()
+        if method == "POST" and path.startswith("/admin/complaints/") and path.endswith("/status"):
+            complaint_id = path.removeprefix("/admin/complaints/").removesuffix("/status").strip("/")
+            return set_complaint_status(complaint_id, StatusIn.model_validate(body.get("body") or {}))
         action = str(body.get("action", "health"))
         if action in {"health", "ping"}:
             return health()
