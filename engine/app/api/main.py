@@ -465,10 +465,13 @@ def create_app() -> FastAPI:
     @app.get("/public/diagnostics")
     def diagnostics(limit: int = 20) -> dict[str, Any]:
         """Safe, judge-visible resilience state; never returns resident data."""
+        now = datetime.now(UTC).isoformat()
         events = _run_events()
         incident_kinds = {"triage_failed", "graph_failed", "filing_failed", "ticket_check_failed", "boundary_rejected"}
         incidents = [event for event in events if event.get("kind") in incident_kinds][:limit]
         persistent = os.getenv("TEBAKI_STORE", "").lower() == "dynamodb"
+        live_model = os.getenv("TEBAKI_LIVE_BEDROCK", "").lower() in {"1", "true", "yes", "on"}
+        email_live = bool(os.getenv("TEBAKI_SMTP_HOST") or os.getenv("TEBAKI_SES_FROM"))
         try:
             pack = load_city_pack(settings.cities_dir.resolve(), settings.city_pack)
             coverage = pack.coverage
@@ -481,14 +484,25 @@ def create_app() -> FastAPI:
         except Exception:  # noqa: BLE001 — diagnostics must remain available during bad pack deploys
             coverage_state = "attention"
             coverage_detail = "City pack could not be loaded; geographic claims are unverified."
-        return {
-            "checks": [
+        # These checks describe configuration and recovery guarantees without
+        # making a network call (diagnostics must remain available during an
+        # AWS outage).  The runtime health endpoint is the authoritative
+        # liveness check; this view explains what mode it is configured for.
+        checks = [
                 {"id": "boundary", "label": "City boundary guard", "state": "ready", "detail": "Out-of-bound reports are rejected before triage."},
                 {"id": "coverage", "label": "Geographic coverage", "state": coverage_state, "detail": coverage_detail},
                 {"id": "approval_recovery", "label": "Human approval recovery", "state": "ready" if persistent else "local_only", "detail": "Paused decisions are durable only when DynamoDB is enabled."},
-                {"id": "model", "label": "Model recovery", "state": "attention" if any(e.get("kind") in {"triage_failed", "graph_failed"} for e in incidents) else "ready", "detail": "Failed work is retained for the next supervised cycle."},
-                {"id": "filing", "label": "Filing channel", "state": "attention" if any(e.get("kind") == "filing_failed" for e in incidents) else "ready", "detail": "Failed filings remain visible and are never silently marked delivered."},
-            ],
+                {"id": "model", "label": "Model recovery", "state": "attention" if any(e.get("kind") in {"triage_failed", "graph_failed"} for e in incidents) else "ready", "detail": f"{'Live Bedrock' if live_model else 'Scripted offline'} mode; failed work is retained for the next supervised cycle."},
+                {"id": "filing", "label": "Filing channel", "state": "attention" if any(e.get("kind") == "filing_failed" for e in incidents) else ("ready" if email_live or settings.city_pack == "sandbox" else "attention"), "detail": "A filing failure is retained for operator recovery." if any(e.get("kind") == "filing_failed" for e in incidents) else ("Real email delivery is configured." if email_live else ("Sandbox portal is the deterministic filing channel." if settings.city_pack == "sandbox" else "Addis filing is dry-run until SMTP/SES is configured." ))},
+            ]
+        return {
+            "checked_at": now,
+            "city": settings.city_pack,
+            "model_mode": model_mode(),
+            "persistence": "dynamodb" if persistent else "memory",
+            "delivery_mode": "real" if email_live else ("simulated" if settings.city_pack == "sandbox" else "dry_run"),
+            "coverage": {"state": coverage_state, "detail": coverage_detail},
+            "checks": checks,
             "incidents": incidents,
             "incident_count": len(incidents),
         }

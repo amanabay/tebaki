@@ -161,7 +161,11 @@ def test_accountability_and_proof_endpoints(clean_store) -> None:
     assert client.get(f"/public/runs/{run.run_id}").json()["events"]
     assert client.get("/public/impact").json()["total_cases"] == 1
     assert client.get("/public/proof").json()["last_run_id"] == run.run_id
-    assert client.get("/public/diagnostics").json()["checks"]
+    diagnostics = client.get("/public/diagnostics").json()
+    assert diagnostics["checks"]
+    assert diagnostics["city"] == "sandbox"
+    assert diagnostics["delivery_mode"] == "simulated"
+    assert diagnostics["checked_at"]
 
 
 def test_agentcore_http_envelope_reads_public_data(clean_store) -> None:

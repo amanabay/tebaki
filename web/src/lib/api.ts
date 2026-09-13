@@ -113,6 +113,12 @@ export interface ProofData {
 }
 
 export interface DiagnosticsData {
+  checked_at?: string;
+  city?: string;
+  model_mode?: string;
+  persistence?: string;
+  delivery_mode?: "real" | "dry_run" | "simulated";
+  coverage?: { state: string; detail: string };
   checks: Array<{ id: string; label: string; state: "ready" | "attention" | "local_only"; detail: string }>;
   incidents: ActivityEvent[];
   incident_count: number;
