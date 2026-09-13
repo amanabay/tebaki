@@ -46,6 +46,8 @@ export interface LedgerRow {
   report_refs: string[];
   reporters?: string[];
   plus_ones?: number;
+  evidence_score?: number | null;
+  verification_state?: "passed" | "needs_review" | "unverified";
   escalation_log?: Array<{
     level: number | null;
     target: string | null;
@@ -293,6 +295,10 @@ export interface CaseFile {
     privacy_redactions: string[];
     regulation_citation: string | null;
     delivery_mode: "real" | "dry_run" | "simulated";
+    evidence_score?: number | null;
+    verification_state?: "passed" | "needs_review" | "unverified";
+    verification_flags?: string[];
+    verified_at?: string | null;
   };
   timeline: ActivityEvent[];
   escalation_log: Array<{
@@ -312,4 +318,11 @@ export interface CaseFile {
   community_status?: string | null;
   support_count?: number;
   community_updates?: Array<{ at: string; kind: string; actor: string; message: string }>;
+  evidence_score?: number | null;
+  verification_state?: "passed" | "needs_review" | "unverified";
+  verification_flags?: string[];
+  verified_at?: string | null;
+  coordinator_recommendation?: string | null;
+  coordinator_reason?: string | null;
+  coordinator_due?: string | null;
 }

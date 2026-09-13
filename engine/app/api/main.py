@@ -305,6 +305,8 @@ def create_app() -> FastAPI:
                     "report_refs": c.report_refs,
                     "reporters": reporters,
                     "plus_ones": plus_ones,
+                    "evidence_score": c.evidence_score,
+                    "verification_state": c.verification_state,
                     "escalation_log": [
                         {
                             "level": e.get("level"),
@@ -337,6 +339,16 @@ def create_app() -> FastAPI:
         timeline = [event for event in _run_events() if complaint_id == event.get("complaint_id") or any(
             report_id in event.get("report_ids", []) for report_id in report_ids
         )]
+        timeline.extend(
+            {
+                "at": update.get("at"),
+                "kind": update.get("kind", "community_update"),
+                "actor": update.get("actor", "community steward"),
+                "output_summary": update.get("message", "Neighborhood update"),
+                "resulting_action": "published to the case journal",
+            }
+            for update in complaint.community_updates
+        )
         return {
             "complaint_id": complaint.complaint_id,
             "ward": complaint.ward,
@@ -365,6 +377,10 @@ def create_app() -> FastAPI:
                 "privacy_redactions": draft.get("privacy_flags", []),
                 "regulation_citation": draft.get("cite"),
                 "delivery_mode": "simulated" if settings.city_pack == "sandbox" else "dry_run",
+                "evidence_score": complaint.evidence_score,
+                "verification_state": complaint.verification_state,
+                "verification_flags": complaint.verification_flags,
+                "verified_at": complaint.verified_at,
             },
             "timeline": sorted(timeline, key=lambda event: str(event.get("at", ""))),
             "escalation_log": complaint.escalation_log,
@@ -375,6 +391,13 @@ def create_app() -> FastAPI:
             "community_status": complaint.community_status,
             "support_count": complaint.support_count,
             "community_updates": complaint.community_updates,
+            "evidence_score": complaint.evidence_score,
+            "verification_state": complaint.verification_state,
+            "verification_flags": complaint.verification_flags,
+            "verified_at": complaint.verified_at,
+            "coordinator_recommendation": complaint.coordinator_recommendation,
+            "coordinator_reason": complaint.coordinator_reason,
+            "coordinator_due": complaint.coordinator_due,
             "created_at": complaint.created_at,
         }
 
@@ -520,7 +543,7 @@ def create_app() -> FastAPI:
         """Safe, judge-visible resilience state; never returns resident data."""
         now = datetime.now(UTC).isoformat()
         events = _run_events()
-        incident_kinds = {"triage_failed", "graph_failed", "filing_failed", "ticket_check_failed", "boundary_rejected"}
+        incident_kinds = {"triage_failed", "graph_failed", "filing_failed", "filing_preflight_failed", "evidence_gate_failed", "ticket_check_failed", "boundary_rejected"}
         incidents = [event for event in events if event.get("kind") in incident_kinds][:limit]
         persistent = os.getenv("TEBAKI_STORE", "").lower() == "dynamodb"
         live_model = os.getenv("TEBAKI_LIVE_BEDROCK", "").lower() in {"1", "true", "yes", "on"}

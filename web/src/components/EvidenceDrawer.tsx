@@ -1,4 +1,4 @@
-import { MapPin, ShieldAlert, Users } from "lucide-react";
+import { CheckCircle2, MapPin, ShieldAlert, Users } from "lucide-react";
 import type { CaseFile } from "@/lib/api";
 
 export function EvidenceDrawer({ file }: { file: CaseFile }) {
@@ -16,9 +16,11 @@ export function EvidenceDrawer({ file }: { file: CaseFile }) {
           <div><dt className="micro-label">location</dt><dd className="mt-1 flex items-center gap-1.5"><MapPin className="size-4 text-primary" aria-hidden="true" />{file.ward}</dd></div>
           <div><dt className="micro-label">classification</dt><dd className="mt-1 capitalize">{evidence.category ?? "Unclassified"} · severity {evidence.severity ?? "—"}/5</dd></div>
           <div><dt className="micro-label">delivery</dt><dd className="mt-1 capitalize">{evidence.delivery_mode.replace("_", " ")}</dd></div>
+          <div><dt className="micro-label">evidence gate</dt><dd className="mt-1 flex items-center gap-1.5 capitalize">{evidence.verification_state === "passed" ? <CheckCircle2 className="size-4 text-status-filed" aria-hidden="true" /> : <ShieldAlert className="size-4 text-primary" aria-hidden="true" />}{evidence.verification_state?.replace("_", " ") ?? "not run"}{typeof evidence.evidence_score === "number" && ` · ${Math.round(evidence.evidence_score * 100)}%`}</dd></div>
           <div className="sm:col-span-2"><dt className="micro-label">why grouped</dt><dd className="mt-1 leading-relaxed text-muted-foreground">{evidence.grouping_reason}</dd></div>
           <div className="sm:col-span-2"><dt className="micro-label">regulation</dt><dd className="mt-1 leading-relaxed text-muted-foreground">{evidence.regulation_citation ?? "No regulation citation was supplied."}</dd></div>
           {evidence.privacy_redactions.length > 0 && <div className="sm:col-span-2 rounded border border-primary/30 bg-primary/10 p-3 text-xs text-primary"><ShieldAlert className="mr-2 inline size-4" aria-hidden="true" />Redacted before drafting: {evidence.privacy_redactions.join(", ")}</div>}
+          {(evidence.verification_flags?.length ?? 0) > 0 && <div className="sm:col-span-2 rounded border border-status-escalated/30 bg-status-escalated/10 p-3 text-xs text-status-escalated"><ShieldAlert className="mr-2 inline size-4" aria-hidden="true" />Review flags: {evidence.verification_flags?.join(", ")}</div>}
         </dl>
       </div>
     </details>

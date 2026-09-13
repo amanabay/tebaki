@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Clock, HeartHandshake, Send, Users } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Compass, HeartHandshake, Send, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusStamp } from "@/components/StatusStamp";
@@ -202,6 +202,14 @@ export function CaseFilePage() {
               <p><span className="micro-label block">next action</span>{file.next_action ?? "The guardian is preparing the next update."}</p>
             </div>
           )}
+          {file.coordinator_recommendation && (
+            <div className="mt-4 rounded-md border border-border/70 bg-background/60 p-3">
+              <p className="micro-label flex items-center gap-1.5 text-primary"><Compass className="size-3.5" aria-hidden="true" /> guardian suggestion</p>
+              <p className="mt-1 text-sm font-medium">{file.coordinator_recommendation}</p>
+              {file.coordinator_reason && <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{file.coordinator_reason}</p>}
+              <p className="mt-2 text-[11px] text-muted-foreground">Operator chooses whether to assign or publish this action.</p>
+            </div>
+          )}
           <details className="mt-4 border-t border-primary/20 pt-3">
             <summary className="cursor-pointer text-xs font-semibold text-primary">Assign a community steward</summary>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -248,6 +256,23 @@ export function CaseFilePage() {
         </section>
 
         <EvidenceDrawer file={file} />
+
+        {file.community_updates && file.community_updates.length > 0 && (
+          <section aria-labelledby="updates-heading">
+            <div className="mb-2 flex items-end justify-between gap-2">
+              <h2 id="updates-heading" className="micro-label">the neighborhood journal</h2>
+              <span className="text-xs text-muted-foreground">{file.community_updates.length} update{file.community_updates.length === 1 ? "" : "s"}</span>
+            </div>
+            <ol className="space-y-2">
+              {file.community_updates.map((update, index) => (
+                <li key={`${update.at}-${index}`} className="flex gap-3 rounded-md border border-border bg-surface-1 p-3">
+                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                  <div className="min-w-0"><p className="text-sm leading-relaxed">{update.message}</p><p className="mt-1 text-[11px] text-muted-foreground">{update.actor} · {timeAgo(update.at)}</p></div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
 
         {/* the neighbors */}
         <section aria-labelledby="reports-heading">

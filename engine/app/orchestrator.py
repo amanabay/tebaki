@@ -172,6 +172,33 @@ def run_nightly_cycle(
     )
 
     drafts = [c for c in store.list_complaints() if c.status == "awaiting_approval"]
+    from app.agents.tools import coordinator_recommendation
+
+    for complaint in drafts:
+        run.add_event(
+            "evidence_verified",
+            complaint_id=complaint.complaint_id,
+            report_ids=complaint.report_refs,
+            actor="tebaki-evidence-gate",
+            confidence=complaint.evidence_score,
+            output_summary=f"Evidence gate {complaint.verification_state}: {complaint.evidence_score or 0:.0%}",
+            flags=complaint.verification_flags,
+            resulting_action="sent to human review",
+        )
+        suggestion = coordinator_recommendation(complaint)
+        complaint.coordinator_recommendation = suggestion["recommendation"]
+        complaint.coordinator_reason = suggestion["reason"]
+        complaint.community_status = "action_proposed"
+        store.save_complaint(complaint)
+        run.add_event(
+            "coordinator_recommendation",
+            complaint_id=complaint.complaint_id,
+            report_ids=complaint.report_refs,
+            actor="tebaki-coordinator",
+            output_summary=suggestion["recommendation"],
+            reasoning=suggestion["reason"],
+            resulting_action="awaiting operator choice",
+        )
     run.add_event(
         "drafts_ready",
         complaints=len(drafts),
@@ -289,6 +316,10 @@ def resolve_decision(
             store.save_complaint(complaint)
         else:
             draft = {**(complaint.draft_payload or {}), **card.complaint_draft, **(fields or {})}
+            draft["verification_override"] = True
+            complaint.draft_payload = draft
+            complaint.status = "approved" if action == "approve" else "edited"
+            store.save_complaint(complaint)
             from app.agents.tools import file_complaint
 
             run_sync(
@@ -361,6 +392,10 @@ def resolve_decision(
             store.save_complaint(complaint)
         else:
             draft = {**(complaint.draft_payload or {}), **card.complaint_draft, **(fields or {})}
+            draft["verification_override"] = True
+            complaint.draft_payload = draft
+            complaint.status = "approved" if action == "approve" else "edited"
+            store.save_complaint(complaint)
             from app.agents.tools import file_complaint
 
             result = file_complaint._tool_func(

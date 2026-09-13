@@ -7,13 +7,15 @@ const STAGES = [
   ["triage_done", "Triaged by guardian", "Guardian agent"],
   ["cluster_done", "Grouped with nearby reports", "Cluster agent"],
   ["drafts_ready", "Drafted with evidence", "Drafter agent"],
+  ["evidence_verified", "Evidence checked", "Evidence gate"],
+  ["coordinator_recommendation", "Neighborhood action proposed", "Coordinator"],
   ["decision_card", "Waiting for human approval", "Human approval boundary"],
   ["filed", "Filed with city", "Filer agent"],
   ["checked", "Tracked against SLA", "Chaser agent"],
   ["escalated", "Escalated if overdue", "Chaser agent"],
 ] as const;
 
-const ICONS = [Users, ShieldCheck, Users, FileText, Circle, Check, Clock3, ShieldCheck];
+const ICONS = [Users, ShieldCheck, Users, FileText, ShieldCheck, Users, Circle, Check, Clock3, ShieldCheck];
 
 function stageEvent(events: ActivityEvent[], kind: string) {
   return events.find((event) => event.kind === kind);

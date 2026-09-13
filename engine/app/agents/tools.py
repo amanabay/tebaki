@@ -18,11 +18,103 @@ from typing import Any
 from strands import tool
 
 from app.channels import FilingResult
+from app.safety import redact_pii
 from app.store import Complaint, get_store
 
 _VALID_CATEGORIES = {"waste", "pothole", "streetlight", "drain", "water"}
 _RESOLVED_STATUSES = {"resolved", "closed"}
 _ACKNOWLEDGED_STATUSES = {"acknowledged"}
+
+
+def _record_guardrail_event(kind: str, complaint_id: str, detail: str) -> None:
+    """Persist a safe diagnostic event without exposing resident content."""
+    try:
+        from app.agents.model_factory import model_mode
+        from app.city_pack import load_city_pack
+        from app.config import settings
+
+        store = get_store()
+        pack = load_city_pack(settings.cities_dir.resolve(), settings.city_pack)
+        run = store.start_run(pack.city.name)
+        run.add_event(kind, actor="tebaki-guardrail", complaint_id=complaint_id, detail=detail[:200], model=model_mode())
+        store.finish_run(run)
+        store.save_run(run)
+    except Exception:  # noqa: BLE001 — guardrails must never break the filing response
+        return
+
+
+def verify_complaint_draft(draft: dict[str, Any], store: Any | None = None) -> dict[str, Any]:
+    """Run deterministic guardrails over model-authored complaint evidence.
+
+    This is deliberately separate from the language model: a persuasive draft
+    cannot override provenance, privacy, or schema checks.
+    """
+    store = store or get_store()
+    flags: list[str] = []
+    refs = [str(ref).strip() for ref in (draft.get("report_refs") or []) if str(ref).strip()]
+    if not refs:
+        flags.append("no source reports")
+    if len(refs) != len(set(refs)):
+        flags.append("duplicate source reports")
+    missing_refs = [ref for ref in refs if store.get_report(ref) is None]
+    if missing_refs:
+        flags.append(f"unknown source report ({len(missing_refs)})")
+    category = str(draft.get("category") or "")
+    if category not in _VALID_CATEGORIES:
+        flags.append("invalid category")
+    try:
+        severity = int(draft.get("severity", 0))
+        if not 1 <= severity <= 5:
+            flags.append("severity outside 1-5")
+    except (TypeError, ValueError):
+        flags.append("severity is not numeric")
+    try:
+        lat, lon = float(draft.get("lat")), float(draft.get("lon"))
+        if not -90 <= lat <= 90 or not -180 <= lon <= 180:
+            flags.append("coordinates outside valid range")
+    except (TypeError, ValueError):
+        flags.append("missing coordinates")
+    text = str(draft.get("text") or "").strip()
+    if len(text) < 20:
+        flags.append("complaint text is too short")
+    _, privacy_flags = redact_pii(text)
+    if privacy_flags:
+        flags.append("unredacted personal data")
+    if not str(draft.get("ward") or "").strip():
+        flags.append("missing administrative area")
+    if not str(draft.get("subject") or "").strip():
+        flags.append("missing subject")
+    score = max(0.0, round(1.0 - min(len(flags), 5) * 0.2, 2))
+    return {
+        "evidence_score": score,
+        "verification_state": "passed" if not flags else "needs_review",
+        "verification_flags": flags,
+        "verified_at": _now_iso(),
+    }
+
+
+def coordinator_recommendation(complaint: Complaint) -> dict[str, str]:
+    """Produce a bounded, explainable neighborhood action suggestion.
+
+    This intentionally uses persisted evidence and SLA state rather than
+    inventing a volunteer task from free-form model output.
+    """
+    payload = complaint.draft_payload or {}
+    residents = int(payload.get("resident_count") or len(complaint.report_refs))
+    severity = int(payload.get("severity") or 3)
+    if complaint.status.startswith("escalated"):
+        action = "Share the escalation status with the neighborhood steward and request a check-in."
+        reason = "The city deadline was missed, so residents need a visible follow-up owner."
+    elif severity >= 4:
+        action = "Ask a steward to confirm the hazard is still present within 24 hours."
+        reason = "High-severity issues benefit from a quick resident-side verification before filing follow-up."
+    elif residents >= 2:
+        action = "Invite one nearby resident to corroborate the condition and add a safe progress note."
+        reason = f"{residents} residents are already connected to this case; one more check improves accountability."
+    else:
+        action = "Ask a nearby resident to corroborate the condition before the next review cycle."
+        reason = "A second perspective helps the team distinguish an isolated report from a shared issue."
+    return {"recommendation": action, "reason": reason}
 
 
 @tool
@@ -181,6 +273,12 @@ def submit_complaint_drafts(drafts: list[dict[str, Any]]) -> str:
             status="awaiting_approval",
         )
         draft["complaint_id"] = complaint.complaint_id
+        verification = verify_complaint_draft(draft, store)
+        draft.update(verification)
+        complaint.evidence_score = verification["evidence_score"]
+        complaint.verification_state = verification["verification_state"]
+        complaint.verification_flags = verification["verification_flags"]
+        complaint.verified_at = verification["verified_at"]
         complaint.draft_payload = draft
         store.add_complaint(complaint)
         staged.append(complaint.complaint_id)
@@ -319,14 +417,29 @@ def file_complaint(
     from app.agents.registry import get_filing_context
 
     filing = get_filing_context()
-    channel = filing.channel
-    result: FilingResult = channel.file(
-        {"category": category, "lat": lat, "lon": lon, "text": text, "subject": subject, "cite": cite}
-    )
     store = get_store()
     complaint = store.get_complaint(complaint_id)
     if complaint is None:
         return f"error: unknown complaint_id {complaint_id}"
+    if complaint.status not in {"awaiting_approval", "approved", "edited"}:
+        _record_guardrail_event("filing_preflight_failed", complaint_id, f"invalid status {complaint.status}")
+        return f"filing preflight blocked for {complaint_id}: complaint is {complaint.status}"
+    if complaint.verification_state == "needs_review" and not (complaint.draft_payload or {}).get("verification_override"):
+        complaint.status = "filing_failed"
+        store.save_complaint(complaint)
+        _record_guardrail_event("evidence_gate_failed", complaint_id, "operator review required")
+        return f"filing preflight blocked for {complaint_id}: evidence needs operator review"
+    if not cite and filing.pack and filing.pack.regulations:
+        cite = filing.pack.regulations[0].cite
+    if not subject.strip() or not text.strip() or category not in _VALID_CATEGORIES:
+        complaint.status = "filing_failed"
+        store.save_complaint(complaint)
+        _record_guardrail_event("filing_preflight_failed", complaint_id, "incomplete complaint payload")
+        return f"filing preflight blocked for {complaint_id}: incomplete complaint payload"
+    channel = filing.channel
+    result: FilingResult = channel.file(
+        {"category": category, "lat": lat, "lon": lon, "text": text, "subject": subject, "cite": cite}
+    )
     if result.ok:
         filed_at = datetime.now(UTC)
         ack_days = filing.sla["acknowledge_days"]

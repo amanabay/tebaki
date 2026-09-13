@@ -175,6 +175,13 @@ class Complaint:
         community_status: str = "needs_attention",
         support_count: int = 0,
         community_updates: list[dict[str, Any]] | None = None,
+        evidence_score: float | None = None,
+        verification_state: str = "unverified",
+        verification_flags: list[str] | None = None,
+        verified_at: str | None = None,
+        coordinator_recommendation: str | None = None,
+        coordinator_reason: str | None = None,
+        coordinator_due: str | None = None,
         created_at: str | None = None,
     ) -> None:
         self.complaint_id = complaint_id or f"C-{uuid4().hex[:8].upper()}"
@@ -203,6 +210,13 @@ class Complaint:
         self.community_status = community_status
         self.support_count = support_count
         self.community_updates = community_updates or []
+        self.evidence_score = evidence_score
+        self.verification_state = verification_state
+        self.verification_flags = verification_flags or []
+        self.verified_at = verified_at
+        self.coordinator_recommendation = coordinator_recommendation
+        self.coordinator_reason = coordinator_reason
+        self.coordinator_due = coordinator_due
         self.created_at = created_at or _now()
 
     def to_dict(self) -> dict[str, Any]:
@@ -231,6 +245,13 @@ class Complaint:
             "community_status": self.community_status,
             "support_count": self.support_count,
             "community_updates": self.community_updates,
+            "evidence_score": self.evidence_score,
+            "verification_state": self.verification_state,
+            "verification_flags": self.verification_flags,
+            "verified_at": self.verified_at,
+            "coordinator_recommendation": self.coordinator_recommendation,
+            "coordinator_reason": self.coordinator_reason,
+            "coordinator_due": self.coordinator_due,
             "created_at": self.created_at,
         }
 
@@ -261,6 +282,13 @@ class Complaint:
             community_status=data.get("community_status", "needs_attention"),
             support_count=int(data.get("support_count", 0)),
             community_updates=data.get("community_updates", []),
+            evidence_score=(float(data["evidence_score"]) if data.get("evidence_score") is not None else None),
+            verification_state=data.get("verification_state", "unverified"),
+            verification_flags=data.get("verification_flags", []),
+            verified_at=data.get("verified_at"),
+            coordinator_recommendation=data.get("coordinator_recommendation"),
+            coordinator_reason=data.get("coordinator_reason"),
+            coordinator_due=data.get("coordinator_due"),
             created_at=data.get("created_at"),
         )
 
