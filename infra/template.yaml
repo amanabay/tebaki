@@ -46,3 +46,10 @@ Resources:
             - Effect: Allow
               Action: secretsmanager:GetSecretValue
               Resource: !Ref TebakiOperatorSecret
+Outputs:
+  ApiUrl:
+    Description: Public browser-safe API base URL
+    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+  OperatorSecretArn:
+    Description: Read this generated token from Secrets Manager for protected operator actions
+    Value: !Ref TebakiOperatorSecret

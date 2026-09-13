@@ -58,7 +58,7 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         raw_body = base64.b64decode(raw_body).decode()
     envelope = {"method": method, "path": path, "query": event.get("queryStringParameters") or {}, "body": json.loads(raw_body) if raw_body else None}
     try:
-        result = client.invoke_agent_runtime(agentRuntimeArn=RUNTIME_ARN, runtimeSessionId=f"tebaki-{uuid.uuid4().hex[:24]}", payload=json.dumps(envelope).encode(), contentType="application/json", accept="application/json")
+        result = client.invoke_agent_runtime(agentRuntimeArn=RUNTIME_ARN, runtimeSessionId=f"tebaki-{uuid.uuid4().hex}", payload=json.dumps(envelope).encode(), contentType="application/json", accept="application/json")
         payload = result.get("response")
         if hasattr(payload, "read"):
             payload = payload.read()
