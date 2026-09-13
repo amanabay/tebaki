@@ -302,6 +302,19 @@ export function Decisions({ data }: { data: EngineData }) {
         </div>
       )}
 
+      {data.decisionsError && /401|403|unauthori|forbidden/i.test(data.decisionsError) && (
+        <div
+          role="status"
+          className="rounded-md border border-primary/30 bg-primary/5 px-4 py-3 text-sm"
+        >
+          <p className="font-semibold">Operator access is required to review filings.</p>
+          <p className="mt-1 text-muted-foreground">
+            Select the shield in the top bar, enter your operator token, then return here. The
+            public map and case history remain available without it.
+          </p>
+        </div>
+      )}
+
       {data.online === null ? (
         <div className="space-y-5">
           {[...Array(2)].map((_, i) => (

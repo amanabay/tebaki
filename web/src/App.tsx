@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { Component, createContext, useContext, useEffect, useState, type ErrorInfo, type ReactNode } from "react";
 import { Link, Route, Routes, useLocation } from "react-router-dom";
 import {
   BarChart3,
@@ -255,6 +255,43 @@ function NotFound() {
   );
 }
 
+class RouteErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    // Keep diagnostics useful without exposing resident data.
+    console.error("Tebaki route failed", error, info.componentStack);
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <div className="mx-auto max-w-lg rounded-md border border-destructive/40 bg-surface-1 px-6 py-14 text-center">
+        <h1 className="font-serif text-2xl font-bold">This view needs a refresh</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          The guardian kept your data safe, but this screen encountered an unexpected response.
+        </p>
+        <div className="mt-5 flex justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => this.setState({ failed: false })}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"
+          >
+            Try again
+          </button>
+          <Link to="/" className="rounded-lg border border-border px-4 py-2 text-sm font-semibold">
+            Return to overview
+          </Link>
+        </div>
+      </div>
+    );
+  }
+}
+
 interface AppData {
   pending: number;
   online: boolean | null;
@@ -294,7 +331,8 @@ export default function App() {
             : ""}
         </div>
         <main id="main-content" className="mx-auto w-full max-w-7xl flex-1 px-4 pb-24 pt-6 sm:px-6 md:pb-8 md:pt-8">
-          <Routes>
+          <RouteErrorBoundary>
+            <Routes>
             <Route path="/" element={<Dashboard data={engine} />} />
             <Route path="/ledger" element={<Dashboard data={engine} initialView="ledger" />} />
             <Route path="/report" element={<Report />} />
@@ -306,7 +344,8 @@ export default function App() {
             <Route path="/replay" element={<Replay />} />
             <Route path="/diagnostics" element={<Diagnostics />} />
             <Route path="*" element={<NotFound />} />
-          </Routes>
+            </Routes>
+          </RouteErrorBoundary>
         </main>
         <footer className="mt-12 border-t border-border py-6 pb-20 md:pb-6">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 sm:px-6">

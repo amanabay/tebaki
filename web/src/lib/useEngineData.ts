@@ -14,6 +14,8 @@ export interface EngineData {
   activity: ActivityEvent[];
   mapData: MapData | null;
   decisions: DecisionCard[];
+  /** Error loading the protected review queue (usually missing operator token). */
+  decisionsError: string | null;
   /** null = still loading the first fetch; false = fetch failed */
   online: boolean | null;
   refresh: () => void;
@@ -30,6 +32,7 @@ export function useEngineData(): EngineData {
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [mapData, setMapData] = useState<MapData | null>(null);
   const [decisions, setDecisions] = useState<DecisionCard[]>([]);
+  const [decisionsError, setDecisionsError] = useState<string | null>(null);
   const [online, setOnline] = useState<boolean | null>(null);
   const [loaded, setLoaded] = useState(false);
   const failures = useRef(0);
@@ -54,7 +57,18 @@ export function useEngineData(): EngineData {
       if (s.status === "fulfilled") setScoreboard(s.value);
       if (a.status === "fulfilled") setActivity(a.value);
       if (m.status === "fulfilled") setMapData(m.value);
-      if (d.status === "fulfilled") setDecisions(d.value);
+      if (d.status === "fulfilled") {
+        // The browser must remain resilient if a proxy/runtime returns an
+        // unexpected envelope. Never let a malformed response crash a route.
+        const value = Array.isArray(d.value) ? d.value : [];
+        setDecisions(value.filter((card): card is DecisionCard => Boolean(
+          card && typeof card === "object" && typeof card.card_id === "string" &&
+          card.draft && typeof card.draft === "object",
+        )));
+        setDecisionsError(null);
+      } else {
+        setDecisionsError(d.reason instanceof Error ? d.reason.message : "Unable to load review queue");
+      }
       // Decisions are deliberately protected. A 401 before operator access
       // is configured must never make the public guardian look offline.
       const healthy = health.status === "fulfilled";
@@ -101,6 +115,7 @@ export function useEngineData(): EngineData {
     activity,
     mapData,
     decisions,
+    decisionsError,
     online: loaded ? online : null,
     refresh,
   };
