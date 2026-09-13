@@ -265,6 +265,38 @@ def decision_card_from_interrupt(agent_name: str, interrupt: Any, run_id: str | 
             report = store.get_report(rid)
             if report is not None:
                 reporters.append(report.reporter)
+    existing = next(
+        (
+            pending
+            for pending in store.pending_cards()
+            if str((pending.complaint_draft or {}).get("complaint_id", ""))
+            == str(draft.get("complaint_id", ""))
+        ),
+        None,
+    )
+    if existing is not None:
+        # Retries or overlapping scheduled runs update the same approval item;
+        # the latest interrupt snapshot remains the resumable one.
+        existing.complaint_draft = draft
+        existing.context = {
+            **existing.context,
+            "agent": agent_name,
+            "interrupt_id": interrupt.id,
+            "interrupt_name": interrupt.name,
+            "ward": ward,
+            "city": get_filing_city(),
+            "run_id": run_id,
+            "reporters": reporters,
+            "privacy_flags": privacy_flags,
+        }
+        store.save_card(existing)
+        if complaint is not None:
+            complaint.status = "awaiting_approval"
+            if privacy_flags:
+                complaint.draft_payload = draft
+                complaint.draft_text = str(draft.get("text", complaint.draft_text))
+            store.save_complaint(complaint)
+        return existing
     card = store.add_decision_card(
         DecisionCard(
             complaint_draft=draft,
