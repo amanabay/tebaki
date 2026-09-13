@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Any
 
 from app.agents.model_factory import model_mode
@@ -257,6 +258,21 @@ def resolve_decision(
     if card.status != "pending":
         raise ValueError(f"card {card_id} already resolved ({card.status})")
 
+    # A resolve request can arrive on a fresh runtime process. Rehydrate the
+    # filing channel/SLA before resuming so approval does not depend on the
+    # nightly request's in-memory registry.
+    try:
+        active_pack = load_city_pack(settings.cities_dir.resolve(), settings.city_pack)
+        set_filing_context(
+            active_pack.city.name,
+            channel_from_pack(active_pack),
+            sla={"acknowledge_days": active_pack.sla.acknowledge_days, "resolve_days": active_pack.sla.resolve_days},
+            escalation_rungs=[r.model_dump() for r in active_pack.channels.escalation],
+            pack=active_pack,
+        )
+    except Exception as exc:  # noqa: BLE001 — preserve the original runtime context as a fallback
+        logging.getLogger(__name__).warning("could not rehydrate filing context: %s", exc)
+
     # The offline scripted model is used by local development and CI. Its
     # first pass still goes through the real Strands interrupt, but replaying
     # a paused Agent instance after a closed Python 3.14 event loop is not
@@ -272,7 +288,7 @@ def resolve_decision(
             complaint.status = "dropped"
             store.save_complaint(complaint)
         else:
-            draft = {**card.complaint_draft, **(fields or {})}
+            draft = {**(complaint.draft_payload or {}), **card.complaint_draft, **(fields or {})}
             from app.agents.tools import file_complaint
 
             run_sync(
@@ -325,14 +341,50 @@ def resolve_decision(
             "stop_reason": "end_turn",
         }
 
-    paused = resume_filing(card_id)
-    response: Any = {"action": "edit", "fields": fields or {}} if action == "edit" else action
-    result = run_sync(
-        lambda: paused.agent.invoke_async(
-            [{"interruptResponse": {"interruptId": paused.interrupt_id, "response": response}}]
+    try:
+        paused = resume_filing(card_id)
+        response: Any = {"action": "edit", "fields": fields or {}} if action == "edit" else action
+        result = run_sync(
+            lambda: paused.agent.invoke_async(
+                [{"interruptResponse": {"interruptId": paused.interrupt_id, "response": response}}]
+            )
         )
-    )
+    except Exception as exc:  # live snapshots can be invalid across model/runtime versions
+        # Keep the approval boundary intact while recovering from a model
+        # resume failure. The human already approved this exact card, so apply
+        # the persisted tool payload directly and retain an incident trail.
+        complaint = store.get_complaint(card.complaint_draft["complaint_id"])
+        if complaint is None:
+            raise ValueError(f"unknown complaint {card.complaint_draft['complaint_id']!r}") from exc
+        if action == "drop":
+            complaint.status = "dropped"
+            store.save_complaint(complaint)
+        else:
+            draft = {**(complaint.draft_payload or {}), **card.complaint_draft, **(fields or {})}
+            from app.agents.tools import file_complaint
 
+            result = file_complaint._tool_func(
+                complaint_id=str(draft["complaint_id"]),
+                category=str(draft.get("category") or "waste"),
+                lat=float(draft.get("lat") or 0),
+                lon=float(draft.get("lon") or 0),
+                subject=str(draft.get("subject") or "Community complaint"),
+                text=str(draft.get("text") or complaint.draft_text or ""),
+                cite=draft.get("cite"),
+            )
+            complaint = store.get_complaint(complaint.complaint_id) or complaint
+            if str(result).startswith("filing failed"):
+                raise ValueError(str(result)) from exc
+        store.resolve_card(card_id, _RESOLUTIONS[action], response={"action": action, "recovered": True})
+        return {
+            "card_id": card_id,
+            "action": action,
+            "complaint_id": complaint.complaint_id,
+            "status": complaint.status,
+            "ticket_id": complaint.ticket_id,
+            "channel": complaint.channel,
+            "stop_reason": "recovered_direct_apply",
+        }
     complaint = store.get_complaint(card.complaint_draft["complaint_id"])
     if complaint is None:
         raise ValueError(f"unknown complaint {card.complaint_draft['complaint_id']!r}")
