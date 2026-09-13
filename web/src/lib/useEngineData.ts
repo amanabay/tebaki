@@ -40,13 +40,14 @@ export function useEngineData(): EngineData {
     inflight.current = true;
     try {
       const results = await Promise.allSettled([
+        api.health(),
         api.ledger(),
         api.scoreboard(),
         api.activity(),
         api.mapData(),
         api.listDecisions(),
       ]);
-      const [l, s, a, m, d] = results;
+      const [health, l, s, a, m, d] = results;
       // Keep the last good value for an individual panel. A transient error
       // in one endpoint must not blank the whole app or reset navigation.
       if (l.status === "fulfilled") setLedger(l.value);
@@ -54,9 +55,11 @@ export function useEngineData(): EngineData {
       if (a.status === "fulfilled") setActivity(a.value);
       if (m.status === "fulfilled") setMapData(m.value);
       if (d.status === "fulfilled") setDecisions(d.value);
-      const failed = results.some((result) => result.status === "rejected");
-      setOnline(!failed);
-      failures.current = failed ? failures.current + 1 : 0;
+      // Decisions are deliberately protected. A 401 before operator access
+      // is configured must never make the public guardian look offline.
+      const healthy = health.status === "fulfilled";
+      setOnline(healthy);
+      failures.current = healthy ? 0 : failures.current + 1;
     } catch {
       failures.current += 1;
       setOnline(false);

@@ -188,6 +188,7 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  health: () => json<{ status: string }>("/health"),
   submitReport: (r: { category: string; lat: number; lon: number; note: string; reporter: string; photo_data?: string }) =>
     json<{ report_id: string; status: string }>("/reports", { method: "POST", body: JSON.stringify(r) }),
   listReports: () => json<Report[]>("/reports"),
