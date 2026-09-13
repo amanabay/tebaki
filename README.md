@@ -46,7 +46,7 @@ The production shape is a scheduled Strands workflow backed by DynamoDB and offi
 
 The operator UI makes the agent accountable: each case has a lifecycle timeline and evidence drawer, while **Replay** replays a persisted run and **Impact** presents anonymized neighborhood outcomes. The browser-safe production contract is `Browser → API proxy → AgentCore → DynamoDB/Bedrock/channels`; the browser never signs AWS requests. AgentCore also accepts the same REST operations through its `/invocations` HTTP-style envelope for proxy deployments.
 
-Live endpoints (us-east-1): [web demo](http://tebaki-web-418316940078-us-east-1.s3-website-us-east-1.amazonaws.com/) · [public API](https://pxgwrenfrk.execute-api.us-east-1.amazonaws.com/health). The static demo currently uses the S3 website endpoint; move it behind CloudFront before a production launch.
+Live endpoints (us-east-1): [HTTPS web demo](https://d20081fyuc7fwc.cloudfront.net/) · [public API](https://pxgwrenfrk.execute-api.us-east-1.amazonaws.com/health). The web build is served through CloudFront; the API proxy keeps AWS signing and operator credentials server-side.
 
 For persistence, run DynamoDB Local (`docker run -d -p 8000:8000 amazon/dynamodb-local:latest` — use a port other than 8000 if the engine owns 8000) and start the engine with `TEBAKI_STORE=dynamodb TEBAKI_DDB_ENDPOINT=<url> TEBAKI_DYNAMODB_TABLE=tebaki`.
 
@@ -55,6 +55,8 @@ For a live Bedrock run: `TEBAKI_LIVE_BEDROCK=1` on the engine (requires AWS cred
 ### Browser-safe AgentCore proxy
 
 `infra/proxy_lambda.py` is the thin API Gateway/Lambda bridge for a hosted web build. It signs requests with the Lambda role, forwards the existing REST contract as an AgentCore HTTP envelope, and keeps operator mutations behind a bearer token. Deploy it with `infra/template.yaml` after storing the runtime ARN, web origin, and operator token in SSM/Secrets Manager; set the resulting API URL as `VITE_API_URL` when building the web app.
+
+The same template provisions an EventBridge-triggered nightly Lambda. It invokes `/admin/nightly` at 02:00 Africa/Addis_Ababa with human approval required; no browser token is used by the scheduler.
 
 CLI: `.venv/bin/python cli/tebaki.py [validate|run|demo|chase] --city sandbox`.
 

@@ -9,6 +9,10 @@ Parameters:
     Type: String
     Default: '*'
     Description: CloudFront origin allowed by CORS
+  NightlySchedule:
+    Type: String
+    Default: 'cron(0 23 * * ? *)'
+    Description: EventBridge schedule in UTC (default 02:00 Africa/Addis_Ababa)
 Resources:
   TebakiOperatorSecret:
     Type: AWS::SecretsManager::Secret
@@ -46,6 +50,29 @@ Resources:
             - Effect: Allow
               Action: secretsmanager:GetSecretValue
               Resource: !Ref TebakiOperatorSecret
+  TebakiNightly:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: nightly_lambda.handler
+      Runtime: python3.12
+      Timeout: 900
+      MemorySize: 512
+      Environment:
+        Variables:
+          TEBAKI_AGENT_RUNTIME_ARN: !Ref AgentRuntimeArn
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: bedrock-agentcore:InvokeAgentRuntime
+              Resource: '*'
+      Events:
+        Nightly:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref NightlySchedule
+            Description: Tebaki supervised nightly case-building cycle
+            Enabled: true
 Outputs:
   ApiUrl:
     Description: Public browser-safe API base URL
