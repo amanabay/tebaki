@@ -15,6 +15,7 @@ Idempotent: safe to re-run; reuses existing repo + runtime by name.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -27,6 +28,22 @@ IMAGE_TAG = "latest"
 ACCOUNT_ID = None  # resolved at runtime
 
 AWS = "aws"
+
+
+def runtime_environment() -> dict[str, str]:
+    """Build runtime configuration, including optional demo SMTP settings."""
+    env = {
+        "TEBAKI_CITY_PACK": "addis",
+        "TEBAKI_AWS_REGION": REGION,
+        "TEBAKI_LIVE_BEDROCK": "1",
+        "TEBAKI_STORE": "dynamodb",
+        "TEBAKI_DYNAMODB_TABLE": "tebaki",
+    }
+    for key in ("TEBAKI_SMTP_HOST", "TEBAKI_SMTP_FROM", "TEBAKI_SMTP_SECRET_ARN", "TEBAKI_EMAIL_MODE"):
+        value = os.getenv(key)
+        if value:
+            env[key] = value
+    return env
 
 
 def sh(cmd: list[str], **kwargs) -> str:
@@ -114,13 +131,7 @@ def ensure_runtime(image_uri: str, role_arn: str) -> str:
                 roleArn=role_arn,
                 networkConfiguration={"networkMode": "PUBLIC"},
                 protocolConfiguration={"serverProtocol": "HTTP"},
-                environmentVariables={
-                    "TEBAKI_CITY_PACK": "addis",
-                    "TEBAKI_AWS_REGION": REGION,
-                    "TEBAKI_LIVE_BEDROCK": "1",
-                    "TEBAKI_STORE": "dynamodb",
-                    "TEBAKI_DYNAMODB_TABLE": "tebaki",
-                },
+                environmentVariables=runtime_environment(),
             )
             print("      runtime updated")
         except Exception as e:  # noqa: BLE001
@@ -133,13 +144,7 @@ def ensure_runtime(image_uri: str, role_arn: str) -> str:
         roleArn=role_arn,
         networkConfiguration={"networkMode": "PUBLIC"},
         protocolConfiguration={"serverProtocol": "HTTP"},
-        environmentVariables={
-            "TEBAKI_CITY_PACK": "addis",
-            "TEBAKI_AWS_REGION": REGION,
-            "TEBAKI_LIVE_BEDROCK": "1",
-            "TEBAKI_STORE": "dynamodb",
-            "TEBAKI_DYNAMODB_TABLE": "tebaki",
-        },
+        environmentVariables=runtime_environment(),
     )
     runtime_id = resp["agentRuntimeId"]
     print(f"      runtime created: {runtime_id}")

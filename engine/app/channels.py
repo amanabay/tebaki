@@ -77,6 +77,22 @@ class EmailChannel:
         self.to_address = to_address
         self.from_address = from_address
         self.smtp_host = smtp_host or os.getenv("TEBAKI_SMTP_HOST")
+        self.smtp_user = os.getenv("TEBAKI_SMTP_USER")
+        self.smtp_password = os.getenv("TEBAKI_SMTP_PASSWORD")
+        secret_arn = os.getenv("TEBAKI_SMTP_SECRET_ARN")
+        if secret_arn and not (self.smtp_user and self.smtp_password):
+            try:
+                import json
+
+                import boto3
+
+                secret = boto3.client("secretsmanager", region_name=os.getenv("TEBAKI_AWS_REGION", "us-east-1")).get_secret_value(SecretId=secret_arn)
+                values = json.loads(secret.get("SecretString", "{}"))
+                self.smtp_user = str(values.get("username", "")) or None
+                self.smtp_password = str(values.get("password", "")) or None
+            except Exception:  # noqa: BLE001 — configuration failures stay visible as filing errors
+                self.smtp_user = None
+                self.smtp_password = None
         self.smtp_port = smtp_port
         self.dry_run = dry_run and self.smtp_host is None
         self.channel = "email"
@@ -105,6 +121,10 @@ class EmailChannel:
             )
         try:
             with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=15) as smtp:
+                smtp.ehlo()
+                smtp.starttls()
+                if self.smtp_user and self.smtp_password:
+                    smtp.login(self.smtp_user, self.smtp_password)
                 smtp.send_message(msg)
         except (smtplib.SMTPException, OSError) as e:
             return FilingResult(ok=False, channel=self.channel, detail=f"smtp error: {e}")
@@ -271,5 +291,8 @@ def channel_from_pack(pack: Any) -> SandboxChannel | EmailChannel | Open311Chann
                 to_address=primary.address,
                 from_address=os.getenv("TEBAKI_SES_FROM", "tebaki@localhost"),
             )
-        return EmailChannel(to_address=primary.address)
+        return EmailChannel(
+            to_address=primary.address,
+            from_address=os.getenv("TEBAKI_SMTP_FROM", "tebaki@localhost"),
+        )
     raise ValueError(f"no filing channel configured for {pack.city.name}")

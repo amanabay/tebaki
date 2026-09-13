@@ -70,6 +70,7 @@ CLI: `.venv/bin/python cli/tebaki.py [validate|run|demo|chase] --city sandbox`.
 | `TEBAKI_LIVE_BEDROCK` | `1` to run agents on Bedrock (default: scripted offline model) |
 | `TEBAKI_BEDROCK_MODEL_ID` | Live model override; defaults to cost-conscious `amazon.nova-lite-v1:0` (Nova Micro/Pro are supported) |
 | `TEBAKI_EMAIL_MODE` / `TEBAKI_SES_FROM` | `ses` + verified sender to send email filings for real |
+| `TEBAKI_SMTP_HOST` / `TEBAKI_SMTP_FROM` / `TEBAKI_SMTP_SECRET_ARN` | Optional Gmail SMTP demo path; store `username` and Gmail app `password` in Secrets Manager |
 | `TEBAKI_SANDBOX_PORTAL_URL` | Sandbox filing portal base URL (default `http://localhost:9100`; useful when deployed separately) |
 | `TEBAKI_CHICAGO_311_KEY` | Chicago Open311 API key |
 | `TEBAKI_CORS_ORIGINS` | Allowed CORS origins for the engine (JSON list) |

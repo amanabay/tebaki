@@ -471,7 +471,7 @@ def create_app() -> FastAPI:
         incidents = [event for event in events if event.get("kind") in incident_kinds][:limit]
         persistent = os.getenv("TEBAKI_STORE", "").lower() == "dynamodb"
         live_model = os.getenv("TEBAKI_LIVE_BEDROCK", "").lower() in {"1", "true", "yes", "on"}
-        email_live = bool(os.getenv("TEBAKI_SMTP_HOST") or os.getenv("TEBAKI_SES_FROM"))
+        email_live = bool(os.getenv("TEBAKI_SMTP_HOST") and (os.getenv("TEBAKI_SMTP_SECRET_ARN") or os.getenv("TEBAKI_SMTP_PASSWORD")) or os.getenv("TEBAKI_SES_FROM"))
         try:
             pack = load_city_pack(settings.cities_dir.resolve(), settings.city_pack)
             city_name = pack.city.name
