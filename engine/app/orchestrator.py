@@ -201,6 +201,23 @@ def run_nightly_cycle(
             store.save_complaint(complaint)
     for complaint in drafts:
         complaint = store.get_complaint(complaint.complaint_id) or complaint
+        if not complaint.coordinator_recommendation:
+            # A model may end its turn without invoking the typed tool. Treat
+            # that as an incomplete result, not success; the bounded fallback
+            # preserves the neighborhood workflow during provider drift.
+            suggestion = coordinator_recommendation(complaint)
+            complaint.coordinator_recommendation = suggestion["recommendation"]
+            complaint.coordinator_reason = suggestion["reason"]
+            complaint.community_status = "action_proposed"
+            store.save_complaint(complaint)
+            run.add_event(
+                "coordinator_fallback",
+                complaint_id=complaint.complaint_id,
+                report_ids=complaint.report_refs,
+                actor="tebaki-coordinator",
+                output_summary="Bounded recommendation used after incomplete model turn",
+                resulting_action="action proposed",
+            )
         run.add_event(
             "evidence_verified",
             complaint_id=complaint.complaint_id,
