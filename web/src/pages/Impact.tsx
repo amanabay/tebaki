@@ -7,7 +7,7 @@ export function Impact() {
   const [impact, setImpact] = useState<ImpactData | null>(null);
   const [proof, setProof] = useState<ProofData | null>(null);
   const [digest, setDigest] = useState<CommunityDigest | null>(null);
-  useEffect(() => { Promise.all([api.impact(), api.proof(), api.communityDigest()]).then(([i, p, d]) => { setImpact(i); setProof(p); setDigest(d); }).catch(() => undefined); }, []);
+  useEffect(() => { Promise.all([api.impact(), api.proof(), api.communityDigest()]).then(([i, p, d]) => { setImpact(i); setProof(p); setDigest(typeof d.residents_involved === "number" ? d : null); }).catch(() => undefined); }, []);
   if (!impact || !proof) return <div className="mx-auto max-w-3xl space-y-4"><Skeleton className="h-12 w-2/3" /><Skeleton className="h-40 w-full" /></div>;
   const metrics = [
     ["Unresolved cases", impact.unresolved_cases, Clock3],
