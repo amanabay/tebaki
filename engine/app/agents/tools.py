@@ -462,6 +462,10 @@ def file_complaint(
         store.save_complaint(complaint)
         _record_guardrail_event("filing_preflight_failed", complaint_id, "incomplete complaint payload")
         return f"filing preflight blocked for {complaint_id}: incomplete complaint payload"
+    # Defense in depth: edits made during approval are redacted again at the
+    # external-action boundary, even when the scripted resume path bypasses
+    # the normal interrupt hook.
+    text, _ = redact_pii(text)
     channel = filing.channel
     result: FilingResult = channel.file(
         {"category": category, "lat": lat, "lon": lon, "text": text, "subject": subject, "cite": cite}
