@@ -10,6 +10,7 @@ import {
   Map as MapIcon,
   Moon,
   Plus,
+  Shield,
   Sun,
 } from "lucide-react";
 import { Dashboard } from "@/pages/Dashboard";
@@ -21,6 +22,7 @@ import { Stats } from "@/pages/Stats";
 import { Impact } from "@/pages/Impact";
 import { Replay } from "@/pages/Replay";
 import { Diagnostics } from "@/pages/Diagnostics";
+import { operatorToken, setOperatorToken } from "@/lib/api";
 import { useEngineData } from "@/lib/useEngineData";
 import { useTheme } from "@/lib/theme";
 import { useLanguage } from "@/lib/i18n";
@@ -86,6 +88,27 @@ function LanguageToggle() {
       className="min-h-10 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
     >
       {t("switchLanguage")}
+    </button>
+  );
+}
+
+function OperatorAccess() {
+  const [enabled, setEnabled] = useState(() => Boolean(operatorToken()));
+  const configure = () => {
+    const value = window.prompt("Enter the operator token for protected filing actions.");
+    if (value === null) return;
+    setOperatorToken(value || null);
+    setEnabled(Boolean(value.trim()));
+  };
+  return (
+    <button
+      type="button"
+      onClick={configure}
+      title={enabled ? "Operator access active in this browser" : "Enter operator token"}
+      aria-label={enabled ? "Change operator token" : "Enter operator token"}
+      className={(enabled ? "text-status-filed" : "text-muted-foreground") + " flex size-10 items-center justify-center rounded-lg transition-colors hover:bg-surface-2 hover:text-foreground"}
+    >
+      <Shield className="size-4" aria-hidden="true" />
     </button>
   );
 }
@@ -169,8 +192,9 @@ function Masthead({ pending, online }: { pending: number; online: boolean | null
               <Plus className="size-4" aria-hidden="true" />
               {t("report")}
             </Link>
-            <ThemeToggle />
-            <LanguageToggle />
+          <ThemeToggle />
+          <LanguageToggle />
+          <OperatorAccess />
         </div>
       </div>
     </header>

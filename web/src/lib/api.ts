@@ -1,4 +1,15 @@
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const OPERATOR_TOKEN_KEY = "tebaki.operator-token";
+
+export function operatorToken(): string | null {
+  return typeof window === "undefined" ? null : window.localStorage.getItem(OPERATOR_TOKEN_KEY);
+}
+
+export function setOperatorToken(token: string | null): void {
+  if (typeof window === "undefined") return;
+  if (token?.trim()) window.localStorage.setItem(OPERATOR_TOKEN_KEY, token.trim());
+  else window.localStorage.removeItem(OPERATOR_TOKEN_KEY);
+}
 
 export interface Report {
   report_id: string;
@@ -158,8 +169,9 @@ export interface ResolveOutcome {
 }
 
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = operatorToken();
   const resp = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     ...init,
   });
   if (!resp.ok) {

@@ -46,6 +46,8 @@ The production shape is a scheduled Strands workflow backed by DynamoDB and offi
 
 The operator UI makes the agent accountable: each case has a lifecycle timeline and evidence drawer, while **Replay** replays a persisted run and **Impact** presents anonymized neighborhood outcomes. The browser-safe production contract is `Browser → API proxy → AgentCore → DynamoDB/Bedrock/channels`; the browser never signs AWS requests. AgentCore also accepts the same REST operations through its `/invocations` HTTP-style envelope for proxy deployments.
 
+Live endpoints (us-east-1): [web demo](http://tebaki-web-418316940078-us-east-1.s3-website-us-east-1.amazonaws.com/) · [public API](https://pxgwrenfrk.execute-api.us-east-1.amazonaws.com/health). The static demo currently uses the S3 website endpoint; move it behind CloudFront before a production launch.
+
 For persistence, run DynamoDB Local (`docker run -d -p 8000:8000 amazon/dynamodb-local:latest` — use a port other than 8000 if the engine owns 8000) and start the engine with `TEBAKI_STORE=dynamodb TEBAKI_DDB_ENDPOINT=<url> TEBAKI_DYNAMODB_TABLE=tebaki`.
 
 For a live Bedrock run: `TEBAKI_LIVE_BEDROCK=1` on the engine (requires AWS credentials with Nova access). For real email filing: `TEBAKI_EMAIL_MODE=ses TEBAKI_SES_FROM=<verified-sender>`.
