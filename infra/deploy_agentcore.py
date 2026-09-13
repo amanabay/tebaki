@@ -48,7 +48,7 @@ def runtime_environment() -> dict[str, str]:
 
 def sh(cmd: list[str], **kwargs) -> str:
     """Run a command, bail on failure with output shown."""
-    result = subprocess.run(cmd, capture_output=True, text=True, **kwargs)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False, **kwargs)
     if result.returncode != 0:
         print(f"command failed: {' '.join(cmd)}", file=sys.stderr)
         print(result.stdout, file=sys.stderr)
@@ -82,14 +82,13 @@ def ensure_repo_and_push(account_id: str) -> str:
         print("      reusing ECR repo")
     except SystemExit:
         # describe-repositories failed -> repo doesn't exist
-        global AWS
         result = subprocess.run(
             [AWS, "ecr", "create-repository",
              "--repository-name", ECR_REPO,
              "--region", REGION,
              "--image-scanning-configuration", "scanOnPush=false",
              "--output", "json"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, check=False,
         )
         if result.returncode != 0:
             print(result.stderr, file=sys.stderr)
@@ -163,9 +162,6 @@ def ensure_runtime(image_uri: str, role_arn: str) -> str:
 
 def print_invocation(runtime_id: str, account_id: str) -> None:
     print("[4/4] invocation info")
-    endpoint = (
-        f"https://{runtime_id}.{REGION}.bedrock-agentcore.{REGION}.amazonaws.com/"
-    )
     print(f"""
 Runtime: {runtime_id}
 Invoke:  aws bedrock-agentcore invoke-agent-runtime \\
@@ -203,7 +199,7 @@ def ensure_role(account_id: str) -> str:
              "--role-name", role_name,
              "--assume-role-policy-document", json.dumps(trust),
              "--output", "json"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, check=False,
         )
         if result.returncode != 0:
             print(result.stderr, file=sys.stderr)
@@ -251,7 +247,7 @@ def ensure_role(account_id: str) -> str:
              "--policy-name", policy_name,
              "--policy-document", json.dumps(policy),
              "--output", "json"],
-            capture_output=True, text=True,
+                capture_output=True, text=True, check=False,
         )
         if result.returncode != 0:
             print(result.stderr, file=sys.stderr)
