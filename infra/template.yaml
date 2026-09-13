@@ -1,7 +1,24 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Tebaki browser-safe API proxy
+Parameters:
+  AgentRuntimeArn:
+    Type: String
+    Description: ARN of the deployed Tebaki AgentCore runtime
+  WebOrigin:
+    Type: String
+    Default: '*'
+    Description: CloudFront origin allowed by CORS
 Resources:
+  TebakiOperatorSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Tebaki operator token (generated; never stored in Git)
+      GenerateSecretString:
+        SecretStringTemplate: '{}'
+        GenerateStringKey: token
+        PasswordLength: 40
+        ExcludePunctuation: true
   TebakiProxy:
     Type: AWS::Serverless::Function
     Properties:
@@ -18,11 +35,14 @@ Resources:
             Method: ANY
       Environment:
         Variables:
-          TEBAKI_AGENT_RUNTIME_ARN: '{{resolve:ssm:/tebaki/agent-runtime-arn}}'
-          TEBAKI_OPERATOR_TOKEN: '{{resolve:secretsmanager:tebaki/operator-token}}'
-          TEBAKI_WEB_ORIGIN: '{{resolve:ssm:/tebaki/web-origin}}'
+          TEBAKI_AGENT_RUNTIME_ARN: !Ref AgentRuntimeArn
+          TEBAKI_OPERATOR_SECRET_ARN: !Ref TebakiOperatorSecret
+          TEBAKI_WEB_ORIGIN: !Ref WebOrigin
       Policies:
         - Statement:
             - Effect: Allow
               Action: bedrock-agentcore:InvokeAgentRuntime
               Resource: '*'
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref TebakiOperatorSecret
