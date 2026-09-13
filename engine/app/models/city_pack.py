@@ -162,6 +162,19 @@ class Pitch(BaseModel):
     source: str = Field(min_length=1)
 
 
+class Coverage(BaseModel):
+    """What geographic and delivery coverage is actually verified."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["verified", "city_fallback", "simulated"] = "verified"
+    pilot_area: str | None = None
+    boundary_source: str | None = None
+    boundary_verified_at: str | None = None
+    contact_source: str | None = None
+    contact_verified_at: str | None = None
+
+
 class Channels(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -194,6 +207,7 @@ class CityPack(BaseModel):
     regulations: list[Regulation] = Field(default_factory=list)
     sla: SLA
     pitch: Pitch
+    coverage: Coverage = Field(default_factory=Coverage)
 
     @model_validator(mode="after")
     def _langs_consistent(self) -> Self:

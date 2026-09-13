@@ -3,6 +3,8 @@ import { Link, Route, Routes, useLocation } from "react-router-dom";
 import {
   BarChart3,
   ClipboardCheck,
+  Activity,
+  Stethoscope,
   Eye,
   Files,
   Map as MapIcon,
@@ -16,6 +18,9 @@ import { Report } from "@/pages/Report";
 import { CaseFilePage } from "@/pages/CaseFile";
 import { Watchlist } from "@/pages/Watchlist";
 import { Stats } from "@/pages/Stats";
+import { Impact } from "@/pages/Impact";
+import { Replay } from "@/pages/Replay";
+import { Diagnostics } from "@/pages/Diagnostics";
 import { useEngineData } from "@/lib/useEngineData";
 import { useTheme } from "@/lib/theme";
 import { useLanguage } from "@/lib/i18n";
@@ -41,6 +46,9 @@ const PRIMARY_TABS: NavItem[] = [
   { to: "/ledger", label: "Ledger", icon: Files },
   { to: "/watch", label: "Watch", icon: Eye },
   { to: "/stats", label: "Stats", icon: BarChart3 },
+  { to: "/impact", label: "Impact", icon: BarChart3 },
+  { to: "/replay", label: "Replay", icon: Activity },
+  { to: "/diagnostics", label: "System", icon: Stethoscope },
 ];
 
 const ACTION_TABS: NavItem[] = [
@@ -178,7 +186,7 @@ function MobileBar({ pending }: { pending: number }) {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-1/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-lg md:hidden"
       aria-label="Primary"
     >
-      <div className="grid grid-cols-6">
+      <div className="grid grid-cols-9">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return <Link
@@ -270,6 +278,9 @@ export default function App() {
             <Route path="/case/:complaintId" element={<CaseFilePage />} />
             <Route path="/watch" element={<Watchlist data={engine} />} />
             <Route path="/stats" element={<Stats data={engine} />} />
+            <Route path="/impact" element={<Impact />} />
+            <Route path="/replay" element={<Replay />} />
+            <Route path="/diagnostics" element={<Diagnostics />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>

@@ -11,7 +11,7 @@ Residents report an issue once. A Strands agent triages reports nightly, cluster
 ```
 tebaki/
 ├─ engine/           Python: Strands orchestrator, FastAPI, tools, agents
-├─ web/              React 19 + Vite + TS SPA/PWA (intake + dashboard + decision queue)
+├─ web/              React 19 + Vite + TS SPA/PWA (intake, map, evidence, impact + replay)
 ├─ cities/           City Packs: addis.yaml, chicago.yaml, sandbox.yaml (+ geojson/)
 ├─ infra/            Container + AgentCore deployment helper
 ├─ sandbox-portal/   Mock city portal for offline dev/CI/eval
@@ -44,9 +44,15 @@ For a judge-ready seeded path, use the sandbox pack above and choose **Load samp
 
 The production shape is a scheduled Strands workflow backed by DynamoDB and official city channels. Local development uses the same graph, a scripted offline model, an in-memory store, and the sandbox portal. The human approval interrupt is durable in the persistent store and every run emits an activity trail for the dashboard.
 
+The operator UI makes the agent accountable: each case has a lifecycle timeline and evidence drawer, while **Replay** replays a persisted run and **Impact** presents anonymized neighborhood outcomes. The browser-safe production contract is `Browser → API proxy → AgentCore → DynamoDB/Bedrock/channels`; the browser never signs AWS requests. AgentCore also accepts the same REST operations through its `/invocations` HTTP-style envelope for proxy deployments.
+
 For persistence, run DynamoDB Local (`docker run -d -p 8000:8000 amazon/dynamodb-local:latest` — use a port other than 8000 if the engine owns 8000) and start the engine with `TEBAKI_STORE=dynamodb TEBAKI_DDB_ENDPOINT=<url> TEBAKI_DYNAMODB_TABLE=tebaki`.
 
 For a live Bedrock run: `TEBAKI_LIVE_BEDROCK=1` on the engine (requires AWS credentials with Nova access). For real email filing: `TEBAKI_EMAIL_MODE=ses TEBAKI_SES_FROM=<verified-sender>`.
+
+### Browser-safe AgentCore proxy
+
+`infra/proxy_lambda.py` is the thin API Gateway/Lambda bridge for a hosted web build. It signs requests with the Lambda role, forwards the existing REST contract as an AgentCore HTTP envelope, and keeps operator mutations behind a bearer token. Deploy it with `infra/template.yaml` after storing the runtime ARN, web origin, and operator token in SSM/Secrets Manager; set the resulting API URL as `VITE_API_URL` when building the web app.
 
 CLI: `.venv/bin/python cli/tebaki.py [validate|run|demo|chase] --city sandbox`.
 
@@ -60,8 +66,21 @@ CLI: `.venv/bin/python cli/tebaki.py [validate|run|demo|chase] --city sandbox`.
 | `TEBAKI_LIVE_BEDROCK` | `1` to run agents on Bedrock (default: scripted offline model) |
 | `TEBAKI_BEDROCK_MODEL_ID` | Live model override; defaults to cost-conscious `amazon.nova-lite-v1:0` (Nova Micro/Pro are supported) |
 | `TEBAKI_EMAIL_MODE` / `TEBAKI_SES_FROM` | `ses` + verified sender to send email filings for real |
+| `TEBAKI_SANDBOX_PORTAL_URL` | Sandbox filing portal base URL (default `http://localhost:9100`; useful when deployed separately) |
 | `TEBAKI_CHICAGO_311_KEY` | Chicago Open311 API key |
 | `TEBAKI_CORS_ORIGINS` | Allowed CORS origins for the engine (JSON list) |
+
+### Accountability API
+
+The public read surfaces are intentionally safe to expose to a resident-facing web app:
+
+| Endpoint | Purpose |
+|---|---|
+| `/public/reports/{id}/timeline` | Report lifecycle from submission through filing/escalation |
+| `/public/complaints/{id}` | Case dossier, source reports, evidence, citation, and timeline |
+| `/public/runs` and `/public/runs/{id}` | Replayable agent runs and summarized tool activity |
+| `/public/impact` | Aggregated neighborhood outcomes and SLA attention |
+| `/public/proof` | Runtime, persistence, model, and workflow verification counters |
 
 ## Adding a city
 

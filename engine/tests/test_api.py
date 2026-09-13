@@ -128,6 +128,49 @@ def test_public_ledger_scoreboard_activity(portal_client, three_reports) -> None
     assert len(map_data["complaints"]) == 2
 
 
+def test_accountability_and_proof_endpoints(clean_store) -> None:
+    client = _client()
+    from app.store import Complaint, Report
+
+    report = clean_store.add_report(
+        Report(report_id="R-TRACE", category="waste", lat=9.01, lon=38.76, note="overflowing bin")
+    )
+    complaint = clean_store.add_complaint(
+        Complaint(
+            complaint_id="C-TRACE",
+            report_refs=[report.report_id],
+            ward="Sandbox District",
+            status="filed",
+            ticket_id="SBX-TRACE",
+            draft_payload={"category": "waste", "severity": 3, "cite": "Solid Waste rule"},
+        )
+    )
+    run = clean_store.start_run("Sandbox City")
+    run.add_event("triage_done", actor="tebaki-guardian", report_ids=[report.report_id], confidence=0.9)
+    run.add_event("filed", actor="tebaki-filer", complaint_id=complaint.complaint_id, report_ids=[report.report_id])
+    clean_store.finish_run(run)
+    clean_store.save_run(run)
+
+    timeline = client.get(f"/public/reports/{report.report_id}/timeline")
+    assert timeline.status_code == 200
+    assert [event["kind"] for event in timeline.json()] == ["submitted", "triage_done", "filed"]
+    case = client.get(f"/public/complaints/{complaint.complaint_id}").json()
+    assert case["evidence"]["report_count"] == 1
+    assert case["timeline"]
+    assert client.get("/public/runs").json()[0]["run_id"] == run.run_id
+    assert client.get(f"/public/runs/{run.run_id}").json()["events"]
+    assert client.get("/public/impact").json()["total_cases"] == 1
+    assert client.get("/public/proof").json()["last_run_id"] == run.run_id
+    assert client.get("/public/diagnostics").json()["checks"]
+
+
+def test_agentcore_http_envelope_reads_public_data(clean_store) -> None:
+    client = _client()
+    response = client.post("/invocations", json={"method": "GET", "path": "/public/proof"})
+    assert response.status_code == 200
+    assert response.json()["runtime_status"] == "reachable"
+
+
 def test_admin_endpoints(portal_client, three_reports) -> None:
     client = _client()
     assert client.get("/health").json() == {"status": "ok"}

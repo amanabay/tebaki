@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app.orchestrator import run_chase, run_nightly_cycle
 from app.store import get_store
 
@@ -82,18 +84,30 @@ def test_submit_triage_skips_bad_rows_without_half_applying(clean_store) -> None
 
     store = clean_store
     good = store.add_report(Report(category="waste", lat=9.01, lon=38.76, note="garbage pile"))
-    store.add_report(Report(category="waste", lat=9.02, lon=38.77, note="more garbage"))
+    invalid = store.add_report(Report(category="waste", lat=9.02, lon=38.77, note="more garbage"))
+    omitted = store.add_report(Report(category="pothole", lat=9.03, lon=38.78, note="missing result"))
 
     out = submit_triage(
         [
             {"report_id": good.report_id, "category": "waste", "severity": 4, "valid": True, "reason": "ok", "language": "en"},
             {"report_id": "R-NOPE", "category": "waste", "severity": 3, "valid": True, "reason": "x", "language": "en"},
-            {"report_id": good.report_id, "category": "nonsense", "severity": 3, "valid": True, "reason": "y", "language": "en"},
+            {"report_id": invalid.report_id, "category": "nonsense", "severity": 3, "valid": True, "reason": "y", "language": "en"},
         ]
     )
-    assert "skipped 3 bad rows" in out
+    assert "triaged 1/3 reports accepted" in out
+    assert "skipped 3 bad rows" in out  # unknown id, invalid category, omitted report
     assert store.get_report(good.report_id).status == "triaged"
     assert store.get_report(good.report_id).category == "waste"
+    assert store.get_report(invalid.report_id).status == "rejected"
+    assert store.get_report(omitted.report_id).status == "rejected"
+    assert "missing triage result" in out
+
+
+def test_sandbox_channel_honors_portal_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.channels import SandboxChannel
+
+    monkeypatch.setenv("TEBAKI_SANDBOX_PORTAL_URL", "https://portal.example.test/api/")
+    assert SandboxChannel().base_url == "https://portal.example.test/api"
 
 
 def test_submit_chase_results_clamps_level_to_next_rung(clean_store) -> None:

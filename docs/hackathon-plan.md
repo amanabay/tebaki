@@ -30,10 +30,10 @@ The engine is a real Strands product, not a chatbot wrapper:
 - **Chaser agent** with SLA clocks and a 3-rung escalation ladder
 - **City Packs** as data, engine as code (`cities/*.yaml`)
 - **Channels:** sandbox portal, Open311, SES, SMTP dry-run
-- **Web:** night-watch dashboard, bilingual masthead, decision cards, map, ledger, scoreboard
-- **71 tests** + CI; **DynamoDB store** already implemented
+- **Web:** night-watch dashboard, bilingual masthead, decision cards, map, ledger, scoreboard, evidence, impact, and replay
+- **97 tests** + CI; **DynamoDB store** already implemented
 
-The pitch is distinctive: *every civic app makes the citizen do the follow-up; Tebaki makes the government do the follow-up.* Clustering several neighbor reports into one complaint **is** the Good Neighbor mechanic. The UI barely tells that story today.
+The pitch is distinctive: *every civic app makes the citizen do the follow-up; Tebaki makes the government do the follow-up.* Clustering several neighbor reports into one complaint **is** the Good Neighbor mechanic. The case timeline, evidence drawer, impact view, and run replay now make that story visible in the product.
 
 ---
 
@@ -43,11 +43,11 @@ The pitch is distinctive: *every civic app makes the citizen do the follow-up; T
 |---|---|
 | Photo + GPS + one line; vision triage | GPS + note only. `photo_key` exists on `Report` but intake never uploads. Category is user-picked. |
 | Bilingual Amharic/English drafts + KB-cited regs | Scripted drafter is English-only. Cite is a YAML string. Amharic is detected, never written. |
-| Addis flagship (real emails, OSM sub-cities, Proc. 513/2007, citable stat) | `cities/addis.yaml` is `TODO-RESEARCH`. GeoJSON is one bbox. No PDF. Pitch number is `TODO-RESEARCH`. |
+| Addis flagship (real emails, OSM sub-cities, Proc. 513/2007, citable stat) | City-level boundary, source-linked regulation/statistics, and a verified public routing contact are present; sub-city polygons and sanitation-specific routing remain explicitly unverified. |
 | AgentCore Browser channel (recorded) | Form map exists in sandbox YAML; **no `BrowserChannel` class**. Escalation letters are logged, not sent. |
 | Nightly cycle files **and** chases | `run_nightly_cycle` does not call `run_chase`. Two separate admin endpoints. |
 | Hooks: PII, geo-fence, Cedar; OTel | Only `filing_approval_hook`. |
-| Evals in CI, AgentCore Runtime, EventBridge, Terraform | `infra/` is empty. No evals. No live URL. |
+| Evals in CI, AgentCore Runtime, EventBridge, Terraform | AgentCore runtime/deployment helper, durable run evidence, and browser-safe proxy template are present; EventBridge schedule and live URL remain deployment work. |
 | PWA, `tebaki init` | Manifest exists; no service worker. CLI has validate/run/demo/chase, not `init`. |
 | Live Bedrock demo | Factory exists. Live smoke was blocked by **account daily token quota**. |
 
@@ -61,9 +61,9 @@ Good Neighbor is **groups, not one person**. Stay on civic-neighborhood. Do **no
 
 Three things currently hide the track:
 
-1. **Clustering is invisible.** Decision cards say "N reports merged" in a tiny field. Ledger does not show "3 neighbors on one street → 1 complaint."
-2. **The group never hears back.** Reporters get a report id, then silence. After filing they should see ticket + SLA; after chase, "escalated to sub-city grievance."
-3. **Addis is a costume until the pack is real.** Placeholder emails and a bbox ward named *"Addis Ababa (placeholder bbox…)"* will show on the scoreboard and undercut Impact.
+1. **Clustering must remain visible.** The case dossier now exposes linked reports, corroboration counts, evidence, and the full agent timeline.
+2. **The group must hear back.** Public case views expose ticket, SLA, and escalation state after filing.
+3. **Addis claims must stay honest.** The pack labels city-level fallback coverage and links boundary/contact claims to sources; the Arada label is not a verified polygon.
 
 ---
 
@@ -84,7 +84,7 @@ The product must be operable without curl, and the Good Neighbor story must be v
 3. **Dashboard "Run tonight" + "Chase now."** `api.runNightly` / `api.runChase` already exist in `web/src/lib/api.ts` and are unused. Default Run tonight to **paused** so decision cards appear.
 4. **Chase inside the nightly cycle.** One button should triage → cluster → draft → interrupt → (after approve) file → chase. Escalation must **send** through the channel (sandbox POST or SES), not only append `escalation_log`.
 5. **Cluster story on cards + ledger.** Report notes, count, "3 neighbors → 1 complaint," map pins for the merged cluster.
-6. **Reporter loop + SLA.** After filing, original reports / a public ticket view show ticket id + ack/resolve deadlines. Scoreboard `resolved` is initialized and never incremented (`engine/app/api/main.py`) — fix it.
+6. **Reporter loop + SLA.** After filing, original reports / a public ticket view show ticket id + ack/resolve deadlines. Scoreboard tracks filed, acknowledged, resolved, and escalated states.
 7. **Geo-fence + PII hooks** on `BeforeToolCallEvent` for `file_complaint` (drop out-of-city points; redact phones/names). Surface hits in the night log. This is the extra Strands surface judges look for.
 
 **Mon/Tue done when:** sandbox E2E from the web — two nearby waste reports + one pothole → Run tonight → two cards, one of them "2 neighbors merged" → approve → ticket → Chase (or auto-chase after file) → night log shows it. Addis scoreboard shows real sub-city names on seeded points.

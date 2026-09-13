@@ -41,14 +41,47 @@ def run_instant_triage(report_id: str) -> None:
     report = store.get_report(report_id)
     if report is None or report.status != "new":
         return
+    # Make the post-submit agent visible and durable, rather than leaving it
+    # as an invisible background side effect.
+    pack = load_city_pack(settings.cities_dir.resolve(), settings.city_pack)
+    run = store.start_run(pack.city.name)
+    run.add_event(
+        "triage_start",
+        actor="tebaki-guardian",
+        report_ids=[report_id],
+        input_summary="One newly submitted resident report",
+        model=model_mode(),
+    )
     from app.agents.roles import triage_agent
 
     agent = triage_agent()
-    run_sync(
-        lambda: agent.invoke_async(
-            json.dumps({"reports": [report.to_dict()], "mode": "instant_triage"})
+    try:
+        run_sync(
+            lambda: agent.invoke_async(
+                json.dumps({"reports": [report.to_dict()], "mode": "instant_triage"})
+            )
         )
-    )
+        updated = store.get_report(report_id) or report
+        run.add_event(
+            "triage_done",
+            actor="tebaki-guardian",
+            report_ids=[report_id],
+            confidence=updated.triage_confidence,
+            output_summary=updated.triage_reason or f"Marked {updated.status}",
+            resulting_action=updated.status,
+        )
+    except Exception as exc:  # noqa: BLE001 — intake must remain durable when inference is unavailable
+        run.add_event(
+            "triage_failed",
+            actor="tebaki-guardian",
+            report_ids=[report_id],
+            error=str(exc)[:160],
+            resulting_action="retained for the next cycle",
+        )
+    finally:
+        store.finish_run(run)
+        run.add_event("cycle_end", outcome="instant_triage", report_ids=[report_id])
+        store.save_run(run)
 
 
 def run_nightly_cycle(
@@ -88,7 +121,13 @@ def run_nightly_cycle(
         run.add_event("cycle_end", outcome="no_new_reports")
         store.save_run(run)
         return run.to_dict()
-    run.add_event("triage_start", new_reports=len(new_reports))
+    run.add_event(
+        "triage_start",
+        new_reports=len(new_reports),
+        report_ids=[r.report_id for r in new_reports],
+        actor="tebaki-guardian",
+        input_summary="Reports awaiting a full case review",
+    )
 
     # 1-3) GRAPH PHASE — triage -> cluster -> draft as a Strands multiagent
     # graph with conditional edges (skips stages when nothing is left).
@@ -112,6 +151,9 @@ def run_nightly_cycle(
         accepted=len(accepted),
         rejected=len(rejected),
         graph_nodes=graph_summary["completed"],
+        report_ids=[r.report_id for r in new_reports],
+        actor="tebaki-guardian",
+        output_summary=f"{len(accepted)} reports accepted; {len(rejected)} rejected",
     )
     if not accepted:
         store.finish_run(run)
@@ -120,10 +162,23 @@ def run_nightly_cycle(
         return run.to_dict()
 
     clustered = [r for r in store.list_reports() if r.status == "clustered"]
-    run.add_event("cluster_done", clustered=len(clustered))
+    run.add_event(
+        "cluster_done",
+        clustered=len(clustered),
+        report_ids=[r.report_id for r in clustered],
+        actor="tebaki-cluster",
+        output_summary="Nearby reports were grouped into case candidates",
+    )
 
     drafts = [c for c in store.list_complaints() if c.status == "awaiting_approval"]
-    run.add_event("drafts_ready", complaints=len(drafts))
+    run.add_event(
+        "drafts_ready",
+        complaints=len(drafts),
+        complaint_ids=[c.complaint_id for c in drafts],
+        report_ids=[rid for c in drafts for rid in c.report_refs],
+        actor="tebaki-drafter",
+        output_summary="Evidence-backed drafts are ready for human review",
+    )
 
     # 4) FILE — filer agent per complaint, interrupt-gated
     pending: list[str] = []
@@ -139,7 +194,14 @@ def run_nightly_cycle(
             interrupt = result.interrupts[0]
             card = decision_card_from_interrupt("tebaki-filer", interrupt, run_id=run.run_id)
             pause_filing(card.card_id, filer, interrupt.id)
-            run.add_event("decision_card", card_id=card.card_id, complaint_id=draft_complaint.complaint_id)
+            run.add_event(
+                "decision_card",
+                card_id=card.card_id,
+                complaint_id=draft_complaint.complaint_id,
+                report_ids=draft_complaint.report_refs,
+                actor="human-approver",
+                resulting_action="waiting for human approval",
+            )
             if auto_approve:
                 resolve_decision(card.card_id, "approve")
         # the filer tool persisted state; re-fetch for the fresh status
@@ -151,13 +213,16 @@ def run_nightly_cycle(
                 complaint_id=complaint.complaint_id,
                 ticket_id=complaint.ticket_id,
                 channel=complaint.channel,
+                report_ids=complaint.report_refs,
+                actor="tebaki-filer",
+                resulting_action="filed with city channel",
             )
         elif complaint.status == "filing_failed":
             failed_count += 1
-            run.add_event("filing_failed", complaint_id=complaint.complaint_id)
+            run.add_event("filing_failed", complaint_id=complaint.complaint_id, report_ids=complaint.report_refs, actor="tebaki-filer")
         elif complaint.status == "dropped":
             dropped_count += 1
-            run.add_event("dropped", complaint_id=complaint.complaint_id)
+            run.add_event("dropped", complaint_id=complaint.complaint_id, report_ids=complaint.report_refs, actor="human-approver")
         else:
             pending.append(complaint.complaint_id)
 
@@ -246,6 +311,8 @@ def resolve_decision(
                     ticket_id=complaint.ticket_id,
                     channel=complaint.channel,
                     action=action,
+                    report_ids=complaint.report_refs,
+                    actor="human-approver" if action == "drop" else "tebaki-filer",
                 )
                 store.save_run(run)
         return {
@@ -293,6 +360,8 @@ def resolve_decision(
                 ticket_id=complaint.ticket_id,
                 channel=complaint.channel,
                 action=action,
+                report_ids=complaint.report_refs,
+                actor="human-approver" if action == "drop" else "tebaki-filer",
             )
             store.save_run(run)
 
@@ -384,16 +453,21 @@ def run_chase(city_pack_name: str | None = None) -> dict[str, Any]:
                 complaint_id=current.complaint_id,
                 level=current.escalation_level,
                 ticket_status=current.ticket_status,
+                report_ids=current.report_refs,
+                actor="tebaki-chaser",
             )
         elif current.complaint_id in resolved_now:
             run.add_event(
                 "resolved",
                 complaint_id=current.complaint_id,
                 ticket_id=current.ticket_id,
+                report_ids=current.report_refs,
+                actor="tebaki-chaser",
             )
         else:
             run.add_event(
-                "checked", complaint_id=current.complaint_id, status=current.ticket_status
+                "checked", complaint_id=current.complaint_id, status=current.ticket_status,
+                report_ids=current.report_refs, actor="tebaki-chaser"
             )
 
     store.finish_run(run)

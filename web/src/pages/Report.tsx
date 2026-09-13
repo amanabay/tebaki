@@ -101,8 +101,8 @@ export function Report() {
       setError("Please choose an image file.");
       return;
     }
-    if (file.size > 320_000) {
-      setError("That image is too large. Choose one under 320 KB.");
+    if (file.size > 220_000) {
+      setError("That image is too large. Choose one under 220 KB.");
       return;
     }
     const reader = new FileReader();

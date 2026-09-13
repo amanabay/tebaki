@@ -7,6 +7,7 @@ The decision-queue endpoints resume real paused Strands interrupts:
 POST /decisions/{card_id}/resolve approves/edits/drops a pending filing.
 """
 
+import os
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import Any
@@ -15,6 +16,8 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from app.agents.model_factory import model_mode
+from app.city_pack import load_city_pack
 from app.config import settings
 from app.geo import is_within_boundary, load_boundary_features
 from app.orchestrator import resolve_decision, run_chase, run_instant_triage, run_nightly_cycle
@@ -27,12 +30,56 @@ class ReportIn(BaseModel):
     lon: float = Field(ge=-180, le=180)
     note: str = Field(min_length=1, max_length=1000)
     reporter: str = Field(default="anonymous", max_length=100)
-    photo_data: str | None = Field(default=None, max_length=450_000)
+    # Keep inline evidence well below DynamoDB's 400 KB item limit once the
+    # report metadata, timeline, and indexes are accounted for.
+    photo_data: str | None = Field(default=None, max_length=300_000)
 
 
 class ResolveIn(BaseModel):
     action: str = Field(pattern="^(approve|edit|drop)$")
     fields: dict[str, Any] | None = None
+
+
+def _run_events() -> list[dict[str, Any]]:
+    """Flatten durable runs for public, redaction-safe accountability views."""
+    runs = sorted(get_store().list_runs(), key=lambda r: r.started_at, reverse=True)
+    events: list[dict[str, Any]] = []
+    for run in runs:
+        for event in run.events:
+            events.append({"run_id": run.run_id, "city": run.city, **event})
+    return sorted(events, key=lambda event: str(event.get("at", "")), reverse=True)
+
+
+def _timeline_for_report(report_id: str) -> list[dict[str, Any]]:
+    report = get_store().get_report(report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail=f"unknown report {report_id}")
+    timeline = [{
+        "at": report.created_at,
+        "kind": "submitted",
+        "actor": "resident",
+        "report_ids": [report_id],
+        "input_summary": "A resident submitted a civic issue report",
+        "resulting_action": "stored for guardian review",
+    }]
+    for event in _run_events():
+        if report_id in event.get("report_ids", []):
+            timeline.append(event)
+    return sorted(timeline, key=lambda event: str(event.get("at", "")))
+
+
+def _record_system_event(kind: str, **detail: Any) -> None:
+    """Persist a non-agent guardrail outcome for the diagnostics view."""
+    try:
+        pack = load_city_pack(settings.cities_dir.resolve(), settings.city_pack)
+        store = get_store()
+        run = store.start_run(pack.city.name)
+        run.add_event(kind, actor="tebaki-guardrail", **detail)
+        store.finish_run(run)
+        store.save_run(run)
+    except Exception:  # noqa: BLE001 — diagnostics must not break intake validation
+        # Diagnostics must never turn a validation rejection into a server error.
+        return
 
 
 @lru_cache(maxsize=8)
@@ -66,6 +113,11 @@ def create_app() -> FastAPI:
         except Exception:  # noqa: BLE001 — no boundary configured -> skip the gate
             features = ()
         if features and not is_within_boundary(body.lat, body.lon, list(features)):
+            _record_system_event(
+                "boundary_rejected",
+                input_summary="Report location is outside the configured city boundary",
+                resulting_action="report was not stored",
+            )
             raise HTTPException(
                 status_code=422,
                 detail="This location is outside the city the guardian watches. Drop the pin inside the city boundary.",
@@ -75,8 +127,8 @@ def create_app() -> FastAPI:
             if not body.photo_data.startswith("data:image/"):
                 raise HTTPException(status_code=422, detail="photo_data must be an image data URL")
             # Keep the demo payload below DynamoDB's practical item-size limit.
-            if len(body.photo_data) > 450_000:
-                raise HTTPException(status_code=413, detail="photo is too large; use an image under 320 KB")
+            if len(body.photo_data) > 300_000:
+                raise HTTPException(status_code=413, detail="photo is too large; use an image under 220 KB")
         report = store.add_report(
             Report(
                 category=body.category,
@@ -268,6 +320,10 @@ def create_app() -> FastAPI:
             if report is not None:
                 reports.append(report.to_dict())
         draft = complaint.draft_payload or {}
+        report_ids = list(complaint.report_refs)
+        timeline = [event for event in _run_events() if complaint_id == event.get("complaint_id") or any(
+            report_id in event.get("report_ids", []) for report_id in report_ids
+        )]
         return {
             "complaint_id": complaint.complaint_id,
             "ward": complaint.ward,
@@ -285,6 +341,19 @@ def create_app() -> FastAPI:
             "reporters": [r["reporter"] for r in reports],
             "plus_ones": sum(r.get("plus_ones", 0) for r in reports),
             "reports": reports,
+            "evidence": {
+                "report_count": len(reports),
+                "corroborations": sum(r.get("plus_ones", 0) for r in reports),
+                "category": draft.get("category"),
+                "severity": draft.get("severity"),
+                "grouping_reason": draft.get("duplicates_note") or (
+                    "Reports share a category and a nearby location." if len(reports) > 1 else "One source report."
+                ),
+                "privacy_redactions": draft.get("privacy_flags", []),
+                "regulation_citation": draft.get("cite"),
+                "delivery_mode": "simulated" if settings.city_pack == "sandbox" else "dry_run",
+            },
+            "timeline": sorted(timeline, key=lambda event: str(event.get("at", ""))),
             "escalation_log": complaint.escalation_log,
             "created_at": complaint.created_at,
         }
@@ -317,12 +386,112 @@ def create_app() -> FastAPI:
 
     @app.get("/public/activity")
     def activity(limit: int = 200) -> list[dict[str, Any]]:
-        runs = sorted(get_store().list_runs(), key=lambda r: r.started_at, reverse=True)
-        events: list[dict[str, Any]] = []
-        for run in runs:
-            for event in run.events:
-                events.append({"run_id": run.run_id, "city": run.city, **event})
-        return events[:limit]
+        return _run_events()[:limit]
+
+    @app.get("/public/reports/{report_id}/timeline")
+    def report_timeline(report_id: str) -> list[dict[str, Any]]:
+        return _timeline_for_report(report_id)
+
+    @app.get("/public/runs")
+    def runs(limit: int = 50) -> list[dict[str, Any]]:
+        stored = sorted(get_store().list_runs(), key=lambda run: run.started_at, reverse=True)
+        return [
+            {
+                "run_id": run.run_id,
+                "city": run.city,
+                "started_at": run.started_at,
+                "finished_at": run.finished_at,
+                "event_count": len(run.events),
+                "tool_call_count": run.tool_call_count,
+                "token_totals": run.token_totals,
+            }
+            for run in stored[:limit]
+        ]
+
+    @app.get("/public/runs/{run_id}")
+    def run_detail(run_id: str) -> dict[str, Any]:
+        run = get_store().get_run(run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail=f"unknown run {run_id}")
+        return run.to_dict()
+
+    @app.get("/public/impact")
+    def impact() -> dict[str, Any]:
+        complaints = get_store().list_complaints()
+        open_cases = [c for c in complaints if c.status not in {"resolved", "dropped"}]
+        approaching = [
+            c for c in open_cases
+            if c.resolve_deadline and datetime.fromisoformat(c.resolve_deadline) <= datetime.now(UTC) + timedelta(days=2)
+        ]
+        corroborations = sum(
+            report.plus_ones for report in get_store().list_reports()
+        )
+        return {
+            "total_cases": len(complaints),
+            "unresolved_cases": len(open_cases),
+            "resolved_cases": sum(c.status == "resolved" for c in complaints),
+            "escalated_cases": sum(c.status.startswith("escalated_") for c in complaints),
+            "approaching_escalation": len(approaching),
+            "corroborations": corroborations,
+            "wards": scoreboard(),
+        }
+
+    @app.get("/public/proof")
+    def proof() -> dict[str, Any]:
+        store = get_store()
+        complaints = store.list_complaints()
+        runs = sorted(store.list_runs(), key=lambda run: run.started_at, reverse=True)
+        try:
+            pack = load_city_pack(settings.cities_dir.resolve(), settings.city_pack)
+            city_name = pack.city.name
+            coverage = pack.coverage.model_dump()
+        except Exception:  # noqa: BLE001 — proof must still work during a bad pack deploy
+            city_name = settings.city_pack
+            coverage = {"status": "unknown"}
+        return {
+            "city": city_name,
+            "model_mode": model_mode(),
+            "persistence": "dynamodb" if os.getenv("TEBAKI_STORE", "").lower() == "dynamodb" else "memory",
+            "last_run_id": runs[0].run_id if runs else None,
+            "reports_triaged": sum(r.status in {"triaged", "clustered", "filed"} for r in store.list_reports()),
+            "cases_drafted": len(complaints),
+            "human_decisions": sum(event.get("kind") in {"filed", "dropped"} and event.get("action") is not None for event in _run_events()),
+            "filed_tickets": sum(c.ticket_id is not None for c in complaints),
+            "escalations": sum(c.escalation_level for c in complaints),
+            "runtime_status": "reachable",
+            "coverage": coverage,
+        }
+
+    @app.get("/public/diagnostics")
+    def diagnostics(limit: int = 20) -> dict[str, Any]:
+        """Safe, judge-visible resilience state; never returns resident data."""
+        events = _run_events()
+        incident_kinds = {"triage_failed", "graph_failed", "filing_failed", "ticket_check_failed", "boundary_rejected"}
+        incidents = [event for event in events if event.get("kind") in incident_kinds][:limit]
+        persistent = os.getenv("TEBAKI_STORE", "").lower() == "dynamodb"
+        try:
+            pack = load_city_pack(settings.cities_dir.resolve(), settings.city_pack)
+            coverage = pack.coverage
+            coverage_state = "ready" if coverage.status == "verified" else "attention"
+            coverage_detail = (
+                f"Verified pilot: {coverage.pilot_area}."
+                if coverage.status == "verified"
+                else "City-level fallback is active; sub-city polygons are not yet vendored."
+            )
+        except Exception:  # noqa: BLE001 — diagnostics must remain available during bad pack deploys
+            coverage_state = "attention"
+            coverage_detail = "City pack could not be loaded; geographic claims are unverified."
+        return {
+            "checks": [
+                {"id": "boundary", "label": "City boundary guard", "state": "ready", "detail": "Out-of-bound reports are rejected before triage."},
+                {"id": "coverage", "label": "Geographic coverage", "state": coverage_state, "detail": coverage_detail},
+                {"id": "approval_recovery", "label": "Human approval recovery", "state": "ready" if persistent else "local_only", "detail": "Paused decisions are durable only when DynamoDB is enabled."},
+                {"id": "model", "label": "Model recovery", "state": "attention" if any(e.get("kind") in {"triage_failed", "graph_failed"} for e in incidents) else "ready", "detail": "Failed work is retained for the next supervised cycle."},
+                {"id": "filing", "label": "Filing channel", "state": "attention" if any(e.get("kind") == "filing_failed" for e in incidents) else "ready", "detail": "Failed filings remain visible and are never silently marked delivered."},
+            ],
+            "incidents": incidents,
+            "incident_count": len(incidents),
+        }
 
     @app.get("/public/map")
     def map_data() -> dict[str, Any]:
@@ -435,6 +604,52 @@ def create_app() -> FastAPI:
 
     @app.post("/invocations")
     def agentcore_invocation(body: dict[str, Any]) -> dict[str, Any]:
+        # AgentCore receives a small HTTP-style envelope from the browser-safe
+        # proxy.  Keep the older action-only form for CLI smoke tests.
+        method = str(body.get("method", "")).upper()
+        path = str(body.get("path", ""))
+        query = body.get("query") or {}
+        if method == "GET" and path == "/health":
+            return health()
+        if method == "GET" and path == "/public/ledger":
+            return ledger(limit=int(query.get("limit", 200)))
+        if method == "GET" and path == "/public/scoreboard":
+            return scoreboard()
+        if method == "GET" and path == "/public/activity":
+            return activity(limit=int(query.get("limit", 200)))
+        if method == "GET" and path == "/public/map":
+            return map_data()
+        if method == "GET" and path == "/public/impact":
+            return impact()
+        if method == "GET" and path == "/public/proof":
+            return proof()
+        if method == "GET" and path == "/public/diagnostics":
+            return diagnostics(limit=int(query.get("limit", 20)))
+        if method == "GET" and path == "/public/runs":
+            return runs(limit=int(query.get("limit", 50)))
+        if method == "GET" and path.startswith("/public/runs/"):
+            return run_detail(path.removeprefix("/public/runs/").strip("/"))
+        if method == "GET" and path.startswith("/public/reports/") and path.endswith("/timeline"):
+            report_id = path.removeprefix("/public/reports/").removesuffix("/timeline").strip("/")
+            return report_timeline(report_id)
+        if method == "GET" and path == "/decisions":
+            return pending_decisions()
+        if method == "GET" and path == "/reports":
+            return list_reports(limit=int(query.get("limit", 100)))
+        if method == "POST" and path == "/reports":
+            report_response = submit_report(ReportIn.model_validate(body.get("body") or {}), BackgroundTasks())
+            # The managed runtime has no browser request lifecycle to run
+            # FastAPI background tasks, so complete instant triage explicitly.
+            run_instant_triage(str(report_response["report_id"]))
+            return report_response
+        if method == "POST" and path.startswith("/decisions/") and path.endswith("/resolve"):
+            card_id = path.removeprefix("/decisions/").removesuffix("/resolve").strip("/")
+            return resolve(card_id, ResolveIn.model_validate(body.get("body") or {}))
+        if method == "POST" and path == "/admin/nightly":
+            payload = body.get("body") or {}
+            return run_nightly(NightlyIn.model_validate(payload))
+        if method == "POST" and path == "/admin/chase":
+            return chase()
         action = str(body.get("action", "health"))
         if action in {"health", "ping"}:
             return health()

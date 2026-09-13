@@ -56,6 +56,57 @@ export interface ActivityEvent {
   [key: string]: unknown;
 }
 
+export interface RunSummary {
+  run_id: string;
+  city: string;
+  started_at: string;
+  finished_at: string | null;
+  event_count: number;
+  tool_call_count: number;
+  token_totals: { input: number; output: number };
+}
+
+export interface AgentRun extends RunSummary {
+  events: ActivityEvent[];
+}
+
+export interface ImpactData {
+  total_cases: number;
+  unresolved_cases: number;
+  resolved_cases: number;
+  escalated_cases: number;
+  approaching_escalation: number;
+  corroborations: number;
+  wards: ScoreboardRow[];
+}
+
+export interface ProofData {
+  city: string;
+  model_mode: string;
+  persistence: string;
+  last_run_id: string | null;
+  reports_triaged: number;
+  cases_drafted: number;
+  human_decisions: number;
+  filed_tickets: number;
+  escalations: number;
+  runtime_status: string;
+  coverage?: {
+    status: string;
+    pilot_area?: string | null;
+    boundary_source?: string | null;
+    boundary_verified_at?: string | null;
+    contact_source?: string | null;
+    contact_verified_at?: string | null;
+  };
+}
+
+export interface DiagnosticsData {
+  checks: Array<{ id: string; label: string; state: "ready" | "attention" | "local_only"; detail: string }>;
+  incidents: ActivityEvent[];
+  incident_count: number;
+}
+
 export interface MapData {
   reports: Array<{
     report_id: string;
@@ -137,6 +188,12 @@ export const api = {
   ledger: () => json<LedgerRow[]>("/public/ledger"),
   scoreboard: () => json<ScoreboardRow[]>("/public/scoreboard"),
   activity: () => json<ActivityEvent[]>("/public/activity"),
+  reportTimeline: (reportId: string) => json<ActivityEvent[]>(`/public/reports/${reportId}/timeline`),
+  runs: () => json<RunSummary[]>("/public/runs"),
+  run: (runId: string) => json<AgentRun>(`/public/runs/${runId}`),
+  impact: () => json<ImpactData>("/public/impact"),
+  proof: () => json<ProofData>("/public/proof"),
+  diagnostics: () => json<DiagnosticsData>("/public/diagnostics"),
   mapData: () => json<MapData>("/public/map"),
   runNightly: (autoApprove: boolean | null) =>
     json<Record<string, unknown>>("/admin/nightly", {
@@ -187,6 +244,17 @@ export interface CaseFile {
     created_at: string;
     status: string;
   }>;
+  evidence: {
+    report_count: number;
+    corroborations: number;
+    category: string | null;
+    severity: number | null;
+    grouping_reason: string;
+    privacy_redactions: string[];
+    regulation_citation: string | null;
+    delivery_mode: "real" | "dry_run" | "simulated";
+  };
+  timeline: ActivityEvent[];
   escalation_log: Array<{
     level: number | null;
     target: string | null;

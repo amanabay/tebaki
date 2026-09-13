@@ -150,6 +150,12 @@ export function statusMapColor(status: string, dark: boolean): string {
 
 export function eventCopy(kind: string, e: Record<string, unknown>): string {
   switch (kind) {
+    case "submitted":
+      return "Resident report received";
+    case "triage_start":
+      return `Guardian review started${e.new_reports ? ` — ${String(e.new_reports)} report(s)` : ""}`;
+    case "triage_failed":
+      return "Guardian could not complete triage; report retained";
     case "cycle_start":
       return `Nightly cycle started — ${String(e.city)}`;
     case "triage_done":

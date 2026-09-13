@@ -118,6 +118,8 @@ def ensure_runtime(image_uri: str, role_arn: str) -> str:
                     "TEBAKI_CITY_PACK": "addis",
                     "TEBAKI_AWS_REGION": REGION,
                     "TEBAKI_LIVE_BEDROCK": "1",
+                    "TEBAKI_STORE": "dynamodb",
+                    "TEBAKI_DYNAMODB_TABLE": "tebaki",
                 },
             )
             print("      runtime updated")
@@ -135,6 +137,8 @@ def ensure_runtime(image_uri: str, role_arn: str) -> str:
             "TEBAKI_CITY_PACK": "addis",
             "TEBAKI_AWS_REGION": REGION,
             "TEBAKI_LIVE_BEDROCK": "1",
+            "TEBAKI_STORE": "dynamodb",
+            "TEBAKI_DYNAMODB_TABLE": "tebaki",
         },
     )
     runtime_id = resp["agentRuntimeId"]
@@ -159,8 +163,8 @@ def print_invocation(runtime_id: str, account_id: str) -> None:
     )
     print(f"""
 Runtime: {runtime_id}
-Invoke:  aws bedrock-agentcore invoke-runtime \\
-           --runtime-identifier {runtime_id} \\
+Invoke:  aws bedrock-agentcore invoke-agent-runtime \\
+           --agent-runtime-arn arn:aws:bedrock-agentcore:{REGION}:{account_id}:runtime/{runtime_id} \\
            --region {REGION} \\
            --payload '<json>'
 

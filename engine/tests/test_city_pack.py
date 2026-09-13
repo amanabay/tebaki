@@ -21,6 +21,8 @@ def test_load_addis_and_chicago_packs() -> None:
     addis = load_city_pack(CITIES_DIR, "addis")
     assert addis.city.local_name == "አዲስ አበባ"
     assert addis.city.languages == ["am", "en"]
+    assert addis.coverage.status == "city_fallback"
+    assert addis.coverage.contact_source
     chicago = load_city_pack(CITIES_DIR, "chicago")
     assert chicago.channels.api is not None
     assert chicago.channels.api.type == "open311"

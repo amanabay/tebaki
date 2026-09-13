@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusStamp } from "@/components/StatusStamp";
 import { Skeleton } from "@/components/Skeleton";
+import { CaseTimeline } from "@/components/CaseTimeline";
+import { EvidenceDrawer } from "@/components/EvidenceDrawer";
 import { api, type CaseFile } from "@/lib/api";
 import {
   categoryLabel,
@@ -173,6 +175,8 @@ export function CaseFilePage() {
       </header>
 
       <div className="space-y-8 py-6">
+        <CaseTimeline events={file.timeline} />
+
         {/* the complaint text */}
         <section aria-labelledby="complaint-heading">
           <h2 id="complaint-heading" className="micro-label mb-2">
@@ -199,6 +203,8 @@ export function CaseFilePage() {
             )}
           </div>
         </section>
+
+        <EvidenceDrawer file={file} />
 
         {/* the neighbors */}
         <section aria-labelledby="reports-heading">

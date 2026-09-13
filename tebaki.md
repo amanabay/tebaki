@@ -21,18 +21,7 @@ Track: **Good Neighbor Agents** · Language: Python (engine) + React/Vite/TS (we
 
 ## 2. Inspiration
 
-Tebaki is a synthesis of four mined projects (from the Cerebral Valley + AWS AI Agent galleries):
-
-| Source | Contributed |
-|---|---|
-| **EcoLafaek** (1st place, AWS AI Agent Global Hackathon) | Civic-reporting shell + winning formula: local identity, cultural name, citizens photograph issues, AgentCore tool-chaining, public dashboard. **Tebaki inverts it** — it *acts* (files, chases, escalates). |
-| **Revere** (CV gallery [197]) | "Civic chief of staff": watch city government while you sleep, surface one decision card. "Corporations have full-time trackers; citizens have zero." |
-| **CareCoord** [3] + **Bonsai** [205] | The chase-and-escalate loop; small-dollar grunt work too cheap for a human hour. |
-| **Texas Trustee** [129] | Civic deadline pressure with real domain authenticity. |
-
-**"EcoLafaek's body, Revere's nervous system, Bonsai's persistence"** — the inversion (agent nags government, not citizen) is the original synthesis.
-
----
+Tebaki is inspired by the lack of effective civic reporting systems in my city.
 
 ## 3. Product concept
 

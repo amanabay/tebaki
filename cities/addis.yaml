@@ -10,7 +10,8 @@ boundary:
     Published city-level administrative extent from the Ethiopian National
     Agri Data Hub (WGS84; dataset metadata updated 2025-09-03). Sub-city
     polygons remain a follow-up import; reports use the city fallback until
-    that layer is locally vendored.
+    that layer is locally vendored. Do not infer sub-city precision from this
+    file until the official layer is vendored and validated.
 admin:
   - level: city
     source: geojson
@@ -37,6 +38,13 @@ regulations:
   - cite: "Solid Waste Management Proclamation No. 513/2007 — https://leap.unep.org/en/countries/et/national-legislation/solid-waste-management-proclamation-no-513-2007"
     # Source-linked citation is used until the PDF is vendored locally.
     doc: null
+coverage:
+  status: city_fallback
+  pilot_area: Arada (pilot label; boundary not yet vendored)
+  boundary_source: "Ethiopian National Agri Data Hub, Addis Ababa City Woreda Boundary — https://data.moa.gov.et/dataset/addis-ababa-city-woreda-boundary1"
+  boundary_verified_at: "2026-09-12"
+  contact_source: "Addis Ababa City Communication Bureau — https://www.addiscommunication.gov.et/"
+  contact_verified_at: "2026-09-12"
 sla:
   acknowledge_days: 7
   resolve_days: 30

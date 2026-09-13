@@ -99,7 +99,6 @@ def _cmd_test_chicago(args: argparse.Namespace) -> int:
 
     _sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "engine"))
     import httpx
-
     from app.city_pack import load_city_pack
     from app.config import settings as _settings
 

@@ -28,8 +28,10 @@ class FilingResult:
 class SandboxChannel:
     """Files against the local mock portal (sandbox-portal)."""
 
-    def __init__(self, base_url: str = "http://localhost:9100") -> None:
-        self.base_url = base_url.rstrip("/")
+    def __init__(self, base_url: str | None = None) -> None:
+        # Keep the local portal as the safe default, while allowing a deployed
+        # runtime to point at its separately hosted mock/municipal gateway.
+        self.base_url = (base_url or os.getenv("TEBAKI_SANDBOX_PORTAL_URL", "http://localhost:9100")).rstrip("/")
         self.channel = "sandbox"
 
     def file(self, complaint: dict[str, Any]) -> FilingResult:

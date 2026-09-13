@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Tebaki browser-safe API proxy
+Resources:
+  TebakiProxy:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: proxy_lambda.handler
+      Runtime: python3.12
+      Timeout: 60
+      MemorySize: 512
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+      Environment:
+        Variables:
+          TEBAKI_AGENT_RUNTIME_ARN: '{{resolve:ssm:/tebaki/agent-runtime-arn}}'
+          TEBAKI_OPERATOR_TOKEN: '{{resolve:secretsmanager:tebaki/operator-token}}'
+          TEBAKI_WEB_ORIGIN: '{{resolve:ssm:/tebaki/web-origin}}'
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: bedrock-agentcore:InvokeAgentRuntime
+              Resource: '*'
