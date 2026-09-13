@@ -259,6 +259,24 @@ def ensure_role(account_id: str) -> str:
     sh([AWS, "iam", "attach-role-policy",
         "--role-name", role_name,
         "--policy-arn", f"arn:aws:iam::{account_id}:policy/{policy_name}"])
+    smtp_secret_arn = os.getenv("TEBAKI_SMTP_SECRET_ARN")
+    if smtp_secret_arn:
+        # Keep Gmail credentials out of environment values; the runtime may
+        # read only the explicitly configured Secrets Manager secret.
+        smtp_policy = {
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Action": ["secretsmanager:GetSecretValue"],
+                "Resource": [smtp_secret_arn],
+            }],
+        }
+        sh([
+            AWS, "iam", "put-role-policy",
+            "--role-name", role_name,
+            "--policy-name", f"{role_name}-SmtpSecret",
+            "--policy-document", json.dumps(smtp_policy),
+        ])
     # AgentCore validates and pulls the image using the execution role. Keep
     # these narrowly scoped ECR reads separate so existing policy versions do
     # not need to be replaced on every deploy.

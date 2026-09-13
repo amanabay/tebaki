@@ -9,8 +9,9 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# system deps for uv (fast installs)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Install uv from PyPI instead of depending on a second registry during the
+# image build. This keeps rebuilds reliable when GHCR is rate-limited or slow.
+RUN pip install --no-cache-dir uv
 
 # engine files; README next to pyproject so hatchling resolves it
 COPY engine/pyproject.toml ./engine/
