@@ -32,6 +32,7 @@ _TOOL_ROLE = {
     "submit_complaint_drafts": "DRAFTER",
     "file_complaint": "FILER",
     "submit_chase_results": "CHASER",
+    "submit_coordinator_recommendations": "COORDINATOR",
 }
 
 
@@ -244,6 +245,27 @@ def chaser_script(payload: dict[str, Any], tool_specs: list[ToolSpec]) -> tuple[
     return ("submit_chase_results", {"results": results})
 
 
+def coordinator_script(payload: dict[str, Any], tool_specs: list[ToolSpec]) -> tuple[str, dict[str, Any]]:
+    recommendations = []
+    for complaint in payload.get("complaints", []):
+        severity = int(complaint.get("severity") or 3)
+        residents = int(complaint.get("resident_count") or 1)
+        if severity >= 4:
+            action = "Ask a steward to confirm the hazard is still present within 24 hours."
+            reason = "High-severity issues benefit from a quick resident-side verification."
+            due = "within 24 hours"
+        elif residents >= 2:
+            action = "Invite one nearby resident to corroborate the condition and add a safe progress note."
+            reason = f"{residents} residents are already connected to this case."
+            due = "before next review"
+        else:
+            action = "Ask a nearby resident to corroborate the condition before the next review cycle."
+            reason = "A second perspective helps confirm whether this is a shared issue."
+            due = "before next review"
+        recommendations.append({"complaint_id": complaint.get("complaint_id"), "recommendation": action, "reason": reason, "due": due})
+    return ("submit_coordinator_recommendations", {"recommendations": recommendations})
+
+
 def clusterer_script(payload: dict[str, Any], tool_specs: list[ToolSpec]) -> tuple[str, dict[str, Any]]:
     return ("cluster_triaged_reports", {})
 
@@ -254,6 +276,7 @@ SCRIPTS: dict[str, Script] = {
     "DRAFTER": drafter_script,
     "FILER": filer_script,
     "CHASER": chaser_script,
+    "COORDINATOR": coordinator_script,
 }
 
 

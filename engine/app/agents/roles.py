@@ -29,6 +29,7 @@ from app.agents.tools import (
     file_complaint,
     submit_chase_results,
     submit_complaint_drafts,
+    submit_coordinator_recommendations,
     submit_triage,
 )
 from app.safety import redact_draft
@@ -141,6 +142,18 @@ missed deadline, and a request for immediate attention. Never invent \
 facts.
 """
 
+COORDINATOR_PROMPT = """\
+You are Tebaki's neighborhood coordinator. You help residents and small civic
+teams turn an evidence-backed case into one practical next action.
+
+INPUT: {"complaints": [{"complaint_id", "category", "severity", "ward",
+"resident_count", "status"}]}.
+TASK: call submit_coordinator_recommendations EXACTLY ONCE with one entry per
+complaint. Suggest a safe, achievable resident/steward action, explain why it
+fits the evidence, and include a concise due label. Never request personal
+contact details, never send messages, and never claim a city response.
+"""
+
 
 def triage_agent() -> Agent:
     return Agent(
@@ -191,6 +204,16 @@ def chaser_agent() -> Agent:
         system_prompt=CHASER_PROMPT,
         callback_handler=None,
         name="tebaki-chaser",
+    )
+
+
+def coordinator_agent() -> Agent:
+    return Agent(
+        model=get_model(),
+        tools=[submit_coordinator_recommendations],
+        system_prompt=COORDINATOR_PROMPT,
+        callback_handler=None,
+        name="tebaki-coordinator",
     )
 
 

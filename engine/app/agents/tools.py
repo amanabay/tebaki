@@ -118,6 +118,32 @@ def coordinator_recommendation(complaint: Complaint) -> dict[str, str]:
 
 
 @tool
+def submit_coordinator_recommendations(recommendations: list[dict[str, Any]]) -> str:
+    """Persist bounded, privacy-safe neighborhood action suggestions."""
+    store = get_store()
+    accepted = 0
+    errors: list[str] = []
+    for item in recommendations:
+        complaint_id = str(item.get("complaint_id") or "").strip()
+        complaint = store.get_complaint(complaint_id) if complaint_id else None
+        action, _ = redact_pii(str(item.get("recommendation") or "").strip())
+        reason, _ = redact_pii(str(item.get("reason") or "").strip())
+        if complaint is None or len(action) < 12 or len(reason) < 12:
+            errors.append(f"invalid recommendation for {complaint_id or 'unknown complaint'}")
+            continue
+        complaint.coordinator_recommendation = action[:300]
+        complaint.coordinator_reason = reason[:300]
+        complaint.coordinator_due = str(item.get("due") or "")[:40] or None
+        complaint.community_status = "action_proposed"
+        store.save_complaint(complaint)
+        accepted += 1
+    summary = f"proposed {accepted}/{len(recommendations)} neighborhood actions"
+    if errors:
+        summary += f"; skipped {len(errors)} invalid recommendations"
+    return summary
+
+
+@tool
 def submit_triage(results: list[dict[str, Any]]) -> str:
     """Submit triage results for a batch of resident reports.
 

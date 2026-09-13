@@ -172,9 +172,35 @@ def run_nightly_cycle(
     )
 
     drafts = [c for c in store.list_complaints() if c.status == "awaiting_approval"]
+    from app.agents.roles import coordinator_agent
     from app.agents.tools import coordinator_recommendation
 
+    coordinator_payload = {
+        "complaints": [
+            {
+                "complaint_id": complaint.complaint_id,
+                "category": (complaint.draft_payload or {}).get("category"),
+                "severity": (complaint.draft_payload or {}).get("severity"),
+                "ward": complaint.ward,
+                "resident_count": (complaint.draft_payload or {}).get("resident_count", len(complaint.report_refs)),
+                "status": complaint.status,
+            }
+            for complaint in drafts
+        ]
+    }
+    try:
+        coordinator = coordinator_agent()
+        run_sync(lambda: coordinator.invoke_async(json.dumps(coordinator_payload)))
+    except Exception as exc:  # noqa: BLE001 — deterministic recommendation keeps the run useful
+        run.add_event("coordinator_failed", actor="tebaki-coordinator", error=str(exc)[:160], resulting_action="used bounded fallback")
+        for complaint in drafts:
+            suggestion = coordinator_recommendation(complaint)
+            complaint.coordinator_recommendation = suggestion["recommendation"]
+            complaint.coordinator_reason = suggestion["reason"]
+            complaint.community_status = "action_proposed"
+            store.save_complaint(complaint)
     for complaint in drafts:
+        complaint = store.get_complaint(complaint.complaint_id) or complaint
         run.add_event(
             "evidence_verified",
             complaint_id=complaint.complaint_id,
@@ -185,18 +211,13 @@ def run_nightly_cycle(
             flags=complaint.verification_flags,
             resulting_action="sent to human review",
         )
-        suggestion = coordinator_recommendation(complaint)
-        complaint.coordinator_recommendation = suggestion["recommendation"]
-        complaint.coordinator_reason = suggestion["reason"]
-        complaint.community_status = "action_proposed"
-        store.save_complaint(complaint)
         run.add_event(
             "coordinator_recommendation",
             complaint_id=complaint.complaint_id,
             report_ids=complaint.report_refs,
             actor="tebaki-coordinator",
-            output_summary=suggestion["recommendation"],
-            reasoning=suggestion["reason"],
+            output_summary=complaint.coordinator_recommendation or "No action recommendation",
+            reasoning=complaint.coordinator_reason or "No reasoning provided",
             resulting_action="awaiting operator choice",
         )
     run.add_event(
