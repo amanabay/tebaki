@@ -780,6 +780,11 @@ def create_app() -> FastAPI:
         if method == "POST" and path.startswith("/admin/complaints/") and path.endswith("/next-action"):
             complaint_id = path.removeprefix("/admin/complaints/").removesuffix("/next-action").strip("/")
             return set_next_action(complaint_id, AssignmentIn.model_validate(body.get("body") or {}))
+        # Do not silently turn an unknown HTTP envelope into a health result;
+        # that masks stale runtime deployments and makes browser diagnostics
+        # claim success for unsupported routes.
+        if method or path:
+            raise HTTPException(status_code=404, detail=f"unsupported AgentCore route: {method} {path}")
         action = str(body.get("action", "health"))
         if action in {"health", "ping"}:
             return health()
