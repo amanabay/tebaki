@@ -24,8 +24,11 @@ COPY sandbox-portal ./sandbox-portal
 WORKDIR /app/engine
 # slim install: no uv cache, no bytecode, tests stripped
 ENV UV_NO_CACHE=1 PYTHONDONTWRITEBYTECODE=1
+# Keep the AgentCore HTTP entrypoint explicit; a cached editable install must
+# never produce an image without its web server dependency.
 RUN uv venv /app/.venv \
     && uv pip install --python /app/.venv/bin/python -e . --no-progress \
+    && uv pip install --python /app/.venv/bin/python "uvicorn[standard]>=0.32" --no-progress \
     && find /app/.venv -depth -type d -name "tests" -exec rm -rf {} + 2>/dev/null; \
     find /app/.venv -depth -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null; \
     find /app/.venv -name "*.pyc" -delete 2>/dev/null; true
