@@ -532,7 +532,15 @@ def create_app() -> FastAPI:
             "reports_triaged": sum(r.status in {"triaged", "clustered", "filed"} for r in store.list_reports()),
             "cases_drafted": len(complaints),
             "human_decisions": sum(event.get("kind") in {"filed", "dropped"} and event.get("action") is not None for event in _run_events()),
-            "filed_tickets": sum(c.ticket_id is not None for c in complaints),
+            # Email channels intentionally have no municipal ticket id. Count
+            # every durable filing so the proof screen reflects SMTP cases as
+            # well as Open311/sandbox tickets.
+            "filed_tickets": sum(
+                c.filed_at is not None
+                or c.status in {"filed", "acknowledged", "resolved", "escalated_1", "escalated_2", "escalated_3"}
+                for c in complaints
+            ),
+            "ticketed_cases": sum(c.ticket_id is not None for c in complaints),
             "escalations": sum(c.escalation_level for c in complaints),
             "runtime_status": "reachable",
             "coverage": coverage,

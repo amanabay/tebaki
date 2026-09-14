@@ -141,7 +141,6 @@ def test_accountability_and_proof_endpoints(clean_store) -> None:
             report_refs=[report.report_id],
             ward="Sandbox District",
             status="filed",
-            ticket_id="SBX-TRACE",
             draft_payload={"category": "waste", "severity": 3, "cite": "Solid Waste rule"},
         )
     )
@@ -160,7 +159,10 @@ def test_accountability_and_proof_endpoints(clean_store) -> None:
     assert client.get("/public/runs").json()[0]["run_id"] == run.run_id
     assert client.get(f"/public/runs/{run.run_id}").json()["events"]
     assert client.get("/public/impact").json()["total_cases"] == 1
-    assert client.get("/public/proof").json()["last_run_id"] == run.run_id
+    proof = client.get("/public/proof").json()
+    assert proof["last_run_id"] == run.run_id
+    assert proof["filed_tickets"] == 1  # SMTP filings have no city ticket id
+    assert proof["ticketed_cases"] == 0
     diagnostics = client.get("/public/diagnostics").json()
     assert diagnostics["checks"]
     assert diagnostics["city"] == "sandbox"
