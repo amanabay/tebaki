@@ -1,4 +1,6 @@
-from app.agents.tools import coordinator_recommendation, verify_complaint_draft
+from app.agents.registry import set_filing_context
+from app.agents.tools import coordinator_recommendation, file_complaint, verify_complaint_draft
+from app.channels import EmailChannel
 from app.store import Complaint, Report, RunStore
 
 
@@ -63,3 +65,29 @@ def test_coordinator_prioritizes_connected_neighbors() -> None:
     )
     suggestion = coordinator_recommendation(complaint)
     assert "corroborate" in suggestion["recommendation"]
+
+
+def test_filing_is_idempotent_after_a_committed_filing(monkeypatch) -> None:
+    """A retried approval must not invoke the external channel twice."""
+    store = RunStore()
+    complaint = Complaint(status="filed", channel="email", filed_at="2026-09-14T00:00:00+00:00")
+    store.save_complaint(complaint)
+    calls = []
+
+    class CountingChannel(EmailChannel):
+        def file(self, payload):
+            calls.append(payload)
+            raise AssertionError("idempotent retry must not call the channel")
+
+    monkeypatch.setattr("app.agents.tools.get_store", lambda: store)
+    set_filing_context("Addis Ababa", CountingChannel("office@example.gov"))
+    result = file_complaint._tool_func(
+        complaint_id=complaint.complaint_id,
+        category="waste",
+        lat=9.03,
+        lon=38.74,
+        subject="Waste issue",
+        text="Overflowing bins block the footpath.",
+    )
+    assert result.startswith("already filed")
+    assert calls == []
