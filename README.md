@@ -2,7 +2,7 @@
 
 > Every civic app makes the citizen do the follow-up. **Tebaki makes the government do the follow-up.**
 
-Residents report an issue once. A Strands agent triages reports nightly, clusters them into hotspots, drafts bilingual complaints citing the city's own regulations, files them through real channels, tracks every ticket against SLA clocks, auto-escalates stale cases up the official ladder — and surfaces exactly one kind of human interaction: a decision card.
+Residents report an issue once. A Strands agent triages reports nightly, clusters them into hotspots, drafts bilingual complaints citing the city's own regulations, prepares a filing through the configured city channel, tracks every ticket against SLA clocks, auto-escalates stale cases up the official ladder — and surfaces exactly one kind of human interaction: a decision card. Channels are explicitly labelled as real, simulated, or dry-run in the case dossier and proof screen.
 
 **Built for the Agents for Humans Hackathon (Good Neighbor Agents track).**
 
@@ -46,7 +46,7 @@ The production shape is a scheduled Strands workflow backed by DynamoDB and offi
 
 The operator UI makes the agent accountable: each case has a lifecycle timeline and evidence drawer, while **Replay** replays a persisted run and **Impact** presents anonymized neighborhood outcomes. The browser-safe production contract is `Browser → API proxy → AgentCore → DynamoDB/Bedrock/channels`; the browser never signs AWS requests. AgentCore also accepts the same REST operations through its `/invocations` HTTP-style envelope for proxy deployments.
 
-Live endpoints (us-east-1): [HTTPS web demo](https://d20081fyuc7fwc.cloudfront.net/) · [public API](https://pxgwrenfrk.execute-api.us-east-1.amazonaws.com/health). The web build is served through CloudFront; the API proxy keeps AWS signing and operator credentials server-side.
+Live endpoints (us-east-1): [HTTPS web demo](https://d20081fyuc7fwc.cloudfront.net/) · [public API](https://pxgwrenfrk.execute-api.us-east-1.amazonaws.com/health). The web build is served through CloudFront; the API proxy keeps AWS signing and operator credentials server-side. The deployed Addis pack intentionally reports `city_fallback` coverage and `dry_run` delivery until sub-city polygons and an outbound filing channel are independently verified.
 
 For persistence, run DynamoDB Local (`docker run -d -p 8000:8000 amazon/dynamodb-local:latest` — use a port other than 8000 if the engine owns 8000) and start the engine with `TEBAKI_STORE=dynamodb TEBAKI_DDB_ENDPOINT=<url> TEBAKI_DYNAMODB_TABLE=tebaki`.
 
@@ -59,6 +59,16 @@ For a live Bedrock run: `TEBAKI_LIVE_BEDROCK=1` on the engine (requires AWS cred
 The same template provisions an EventBridge-triggered nightly Lambda. It invokes `/admin/nightly` at 02:00 Africa/Addis_Ababa with human approval required; no browser token is used by the scheduler.
 
 CLI: `.venv/bin/python cli/tebaki.py [validate|run|demo|chase] --city sandbox`.
+
+### Camera-ready release checks
+
+The live walkthrough and acceptance criteria are documented in [`docs/demo-runbook.md`](docs/demo-runbook.md). On Python 3.14, the known Strands sync-bridge/TestClient compatibility suite is isolated with the `python314_runtime` marker so the default release check remains finite:
+
+```bash
+PYTHONPATH=engine .venv/bin/python -m pytest engine/tests -q -p no:cacheprovider
+```
+
+That command runs the compatible checks and reports the isolated skips. Run the complete runtime-loop suite with Python 3.12, or deliberately opt in on 3.14 with `TEBAKI_RUN_PY314_RUNTIME=1`.
 
 ### Environment variables
 

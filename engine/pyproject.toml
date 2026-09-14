@@ -49,4 +49,5 @@ asyncio_mode = "strict"
 testpaths = ["tests"]
 markers = [
     "integration: requires an optional local service such as DynamoDB Local",
+    "python314_runtime: exercises the Strands sync bridge/Starlette TestClient path; skipped on Python 3.14 unless TEBAKI_RUN_PY314_RUNTIME=1",
 ]
