@@ -447,6 +447,17 @@ def file_complaint(
     complaint = store.get_complaint(complaint_id)
     if complaint is None:
         return f"error: unknown complaint_id {complaint_id}"
+    # Approval requests can be retried by a browser, proxy, or operator after
+    # the first filing has already committed. Treat an existing filing as an
+    # idempotent success instead of raising a misleading preflight error.
+    # ``filed_at``/``ticket_id`` also cover a process crash between persisting
+    # the filing metadata and the final status update.
+    if complaint.status in {"filed", "acknowledged", "resolved", "escalated_1", "escalated_2", "escalated_3"} or complaint.filed_at or complaint.ticket_id:
+        if complaint.status == "approved" and complaint.filed_at:
+            complaint.status = "filed"
+            store.save_complaint(complaint)
+        channel_name = complaint.channel or getattr(filing.channel, "channel", "email")
+        return f"already filed {complaint_id}: ticket {complaint.ticket_id or 'no-ticket-id'} via {channel_name}"
     if complaint.status not in {"awaiting_approval", "approved", "edited"}:
         _record_guardrail_event("filing_preflight_failed", complaint_id, f"invalid status {complaint.status}")
         return f"filing preflight blocked for {complaint_id}: complaint is {complaint.status}"

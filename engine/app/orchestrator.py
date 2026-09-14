@@ -336,6 +336,26 @@ def resolve_decision(
     if card.status != "pending":
         raise ValueError(f"card {card_id} already resolved ({card.status})")
 
+    # A browser/proxy retry may reach us after the filing transaction has
+    # committed but before the decision-card write became visible. Resolve the
+    # card idempotently and return the durable filing rather than attempting a
+    # second external action (or reporting a misleading preflight failure).
+    existing = store.get_complaint(card.complaint_draft["complaint_id"])
+    if existing is not None and (existing.status in {"filed", "acknowledged", "resolved", "escalated_1", "escalated_2", "escalated_3"} or existing.filed_at or existing.ticket_id):
+        if existing.status == "approved" and existing.filed_at:
+            existing.status = "filed"
+            store.save_complaint(existing)
+        store.resolve_card(card_id, "approved", response={"action": action, "idempotent": True})
+        return {
+            "card_id": card_id,
+            "action": action,
+            "complaint_id": existing.complaint_id,
+            "status": "filed" if existing.filed_at and existing.status == "approved" else existing.status,
+            "ticket_id": existing.ticket_id,
+            "channel": existing.channel,
+            "stop_reason": "already_filed",
+        }
+
     # A resolve request can arrive on a fresh runtime process. Rehydrate the
     # filing channel/SLA before resuming so approval does not depend on the
     # nightly request's in-memory registry.
