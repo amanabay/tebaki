@@ -2,7 +2,7 @@
 
 > Every civic app makes the citizen do the follow-up. **Tebaki makes the government do the follow-up.**
 
-Residents report an issue once. A Strands agent triages reports nightly, clusters them into hotspots, drafts bilingual complaints citing the city's own regulations, prepares a filing through the configured city channel, tracks every ticket against SLA clocks, auto-escalates stale cases up the official ladder — and surfaces exactly one kind of human interaction: a decision card. Channels are explicitly labelled as real, simulated, or dry-run in the case dossier and proof screen.
+Residents report an issue once. A Strands guardian triages it immediately, then the supervised nightly graph clusters nearby reports, drafts an evidence-backed complaint citing the city's regulations, prepares a filing through the configured city channel, tracks the case against SLA clocks, and escalates stale cases up the official ladder. The only external action is gated by a human decision card. Channels are explicitly labelled as real, simulated, or dry-run in the case dossier and proof screen.
 
 **Built for the Agents for Humans Hackathon (Good Neighbor Agents track).**
 
@@ -19,9 +19,11 @@ tebaki/
 └─ tebaki.md         Full plan (pitch, architecture, schedule)
 ```
 
+For a concise judge-facing overview, see [`docs/submission-brief.md`](docs/submission-brief.md).
+
 ## Quickstart
 
-The default city pack is Addis Ababa. Sandbox remains available for offline demos and CI:
+The production city pack is Addis Ababa. For a repeatable local demo and CI, start the sandbox pack:
 
 ```bash
 # 1. mock city complaint portal (terminal 1)
@@ -42,7 +44,7 @@ For a judge-ready seeded path, use the sandbox pack above and choose **Load samp
 
 ![Tebaki architecture](docs/architecture.svg)
 
-The production shape is a scheduled Strands workflow backed by DynamoDB and official city channels. Local development uses the same graph, a scripted offline model, an in-memory store, and the sandbox portal. The human approval interrupt is durable in the persistent store and every run emits an activity trail for the dashboard.
+The deployed shape is a Strands workflow on AgentCore Runtime backed by DynamoDB, Bedrock, and the configured city channel. Local development uses the same graph, a scripted offline model, an in-memory store, and the sandbox portal. The human approval interrupt is durable in the persistent store and every run emits an activity trail for the dashboard.
 
 The operator UI makes the agent accountable: each case has a lifecycle timeline and evidence drawer, while **Replay** replays a persisted run and **Impact** presents anonymized neighborhood outcomes. The browser-safe production contract is `Browser → API proxy → AgentCore → DynamoDB/Bedrock/channels`; the browser never signs AWS requests. AgentCore also accepts the same REST operations through its `/invocations` HTTP-style envelope for proxy deployments.
 
@@ -50,7 +52,7 @@ Live endpoints (us-east-1): [HTTPS web demo](https://d20081fyuc7fwc.cloudfront.n
 
 For persistence, run DynamoDB Local (`docker run -d -p 8000:8000 amazon/dynamodb-local:latest` — use a port other than 8000 if the engine owns 8000) and start the engine with `TEBAKI_STORE=dynamodb TEBAKI_DDB_ENDPOINT=<url> TEBAKI_DYNAMODB_TABLE=tebaki`.
 
-For a live Bedrock run: `TEBAKI_LIVE_BEDROCK=1` on the engine (requires AWS credentials with Nova access). For real email filing: `TEBAKI_EMAIL_MODE=ses TEBAKI_SES_FROM=<verified-sender>`.
+For a live Bedrock run: set `TEBAKI_LIVE_BEDROCK=1` on the engine (requires AWS credentials with Nova access). For real email filing, configure Gmail SMTP with an app password in Secrets Manager, or use SES with a verified sender. Both paths remain blocked until a human approves a decision card.
 
 ### Browser-safe AgentCore proxy
 
@@ -96,6 +98,17 @@ The public read surfaces are intentionally safe to expose to a resident-facing w
 | `/public/runs` and `/public/runs/{id}` | Replayable agent runs and summarized tool activity |
 | `/public/impact` | Aggregated neighborhood outcomes and SLA attention |
 | `/public/proof` | Runtime, persistence, model, and workflow verification counters |
+
+### Camera-ready truth table
+
+| Capability | Current status | Boundary shown to judges |
+|---|---|---|
+| Agent workflow | Live Strands triage, cluster, drafter, filer, coordinator, and chaser agents | Every run records agent, inputs, outputs, and resulting action |
+| Human control | Live durable approve / edit / drop interrupt | No external filing occurs without an operator decision |
+| Addis geography | Verified Bole sub-city polygon plus city-level fallback | Coverage is labelled partial; the full sub-city layer is not claimed |
+| Addis delivery | Gmail SMTP configured in the deployed runtime | Real delivery is only performed after explicit approval |
+| Deterministic demo | Sandbox portal with controllable SLA clock | Used for repeatable escalation recording; never presented as a city filing |
+| Production persistence | DynamoDB | Reports, decision cards, complaints, and run history survive restarts |
 
 ## Adding a city
 
