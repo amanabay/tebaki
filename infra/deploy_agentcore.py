@@ -68,10 +68,17 @@ def get_account_id() -> str:
 
 def build_image() -> None:
     print("[1/4] building engine image (this can take a few minutes)…")
-    sh([
-        "docker", "buildx", "build", "--no-cache", "--platform", "linux/arm64", "--load",
+    command = ["docker", "buildx", "build"]
+    # Cold ARM64 builds can stall while downloading the same base wheels.
+    # Keep the reproducible no-cache default, but allow an operator to reuse
+    # the local BuildKit cache for a fast redeploy after a source-only change.
+    if os.getenv("TEBAKI_DOCKER_NO_CACHE", "1").lower() not in {"0", "false", "no"}:
+        command.append("--no-cache")
+    command.extend([
+        "--platform", "linux/arm64", "--load",
         "-f", "infra/Dockerfile", "-t", "tebaki-engine:local", ".",
     ])
+    sh(command)
     print("      image built")
 
 
