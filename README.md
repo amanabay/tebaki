@@ -42,7 +42,13 @@ For a judge-ready seeded path, use the sandbox pack above and choose **Load samp
 
 ## Architecture
 
-![Tebaki architecture](docs/architecture.svg)
+### Product and agent architecture
+
+![Tebaki product and agent architecture](<docs/images/Project Diagram.png>)
+
+### Deployment architecture
+
+![Tebaki AWS deployment architecture](<docs/images/Deployment Architecture.png>)
 
 The deployed shape is a Strands workflow on AgentCore Runtime backed by DynamoDB, Bedrock, and the configured city channel. Local development uses the same graph, a scripted offline model, an in-memory store, and the sandbox portal. The human approval interrupt is durable in the persistent store and every run emits an activity trail for the dashboard.
 
