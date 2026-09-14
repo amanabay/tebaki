@@ -544,7 +544,21 @@ def create_app() -> FastAPI:
         now = datetime.now(UTC).isoformat()
         events = _run_events()
         incident_kinds = {"triage_failed", "graph_failed", "filing_failed", "filing_preflight_failed", "evidence_gate_failed", "ticket_check_failed", "boundary_rejected"}
-        incidents = [event for event in events if event.get("kind") in incident_kinds][:limit]
+        incidents = []
+        for event in events:
+            if event.get("kind") not in incident_kinds:
+                continue
+            # A duplicate approval can race with a successful filing. Older
+            # runtimes recorded that second attempt as a preflight failure
+            # even though the case is already filed; do not surface this
+            # resolved idempotency event as an active production incident.
+            if event.get("kind") == "filing_preflight_failed" and event.get("complaint_id"):
+                complaint = get_store().get_complaint(str(event["complaint_id"]))
+                if complaint is not None and (complaint.status in {"filed", "acknowledged", "resolved", "escalated_1", "escalated_2", "escalated_3"} or complaint.filed_at or complaint.ticket_id):
+                    continue
+            incidents.append(event)
+            if len(incidents) >= limit:
+                break
         persistent = os.getenv("TEBAKI_STORE", "").lower() == "dynamodb"
         live_model = os.getenv("TEBAKI_LIVE_BEDROCK", "").lower() in {"1", "true", "yes", "on"}
         email_live = bool(os.getenv("TEBAKI_SMTP_HOST") and (os.getenv("TEBAKI_SMTP_SECRET_ARN") or os.getenv("TEBAKI_SMTP_PASSWORD")) or os.getenv("TEBAKI_SES_FROM"))

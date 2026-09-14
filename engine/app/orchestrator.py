@@ -319,6 +319,29 @@ def run_nightly_cycle(
     return run.to_dict()
 
 
+def _record_terminal_resolution(store: Any, card: Any, complaint: Any, action: str) -> None:
+    """Persist a filed/dropped event when approval resumes outside the cycle."""
+    run_id = card.context.get("run_id")
+    if not run_id:
+        return
+    run = store.get_run(run_id)
+    if run is None or run.finished_at is None:
+        return
+    if any(event.get("card_id") == card.card_id and event.get("kind") in {"filed", "dropped"} for event in run.events):
+        return
+    run.add_event(
+        "filed" if complaint.status == "filed" else "dropped",
+        card_id=card.card_id,
+        complaint_id=complaint.complaint_id,
+        ticket_id=complaint.ticket_id,
+        channel=complaint.channel,
+        action=action,
+        report_ids=complaint.report_refs,
+        actor="human-approver" if action == "drop" else "tebaki-filer",
+    )
+    store.save_run(run)
+
+
 def resolve_decision(
     card_id: str, action: str, fields: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -346,6 +369,7 @@ def resolve_decision(
             existing.status = "filed"
             store.save_complaint(existing)
         store.resolve_card(card_id, "approved", response={"action": action, "idempotent": True})
+        _record_terminal_resolution(store, card, existing, action)
         return {
             "card_id": card_id,
             "action": action,
@@ -482,6 +506,7 @@ def resolve_decision(
             if str(result).startswith("filing failed"):
                 raise ValueError(str(result)) from exc
         store.resolve_card(card_id, _RESOLUTIONS[action], response={"action": action, "recovered": True})
+        _record_terminal_resolution(store, card, complaint, action)
         return {
             "card_id": card_id,
             "action": action,
