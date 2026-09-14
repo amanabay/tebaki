@@ -53,7 +53,7 @@ def test_open311_unmapped_category_fails_cleanly(open311_stub) -> None:
     result = channel.file({"category": "water", "lat": 41.9, "lon": -87.6, "text": "leak"})
     assert not result.ok
     assert "no service_code mapped" in result.detail
-    assert "chicago-research" in result.detail
+    assert "service-code map" in result.detail
     assert open311_stub.store == {}  # nothing was sent
 
 

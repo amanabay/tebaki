@@ -164,7 +164,7 @@ class Open311Channel:
                 channel=self.channel,
                 detail=(
                     f"no service_code mapped for category {category!r} — "
-                    "research the city's services list (see docs/chicago-research.md)"
+                    "check the city pack's service-code map"
                 ),
             )
         data = {
@@ -218,7 +218,7 @@ class SESEmailChannel:
     """Files a complaint as an email via Amazon SES v2 (UTF-8, Amharic-safe).
 
     Used when TEBAKI_EMAIL_MODE=ses; requires AWS credentials and a
-    verified sender (see docs/aws-setup.md). Falls back nowhere: failures
+    verified sender configured at runtime. Falls back nowhere: failures
     are reported as FilingResult(ok=False) for the agent to handle.
     """
 

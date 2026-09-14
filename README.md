@@ -16,7 +16,7 @@ tebaki/
 ├─ infra/            Container + AgentCore deployment helper
 ├─ sandbox-portal/   Mock city portal for offline dev/CI/eval
 ├─ cli/              tebaki validate / run / demo / chase
-└─ tebaki.md         Full plan (pitch, architecture, schedule)
+└─ docs/              Judge-facing submission brief and architecture diagram
 ```
 
 For a concise judge-facing overview, see [`docs/submission-brief.md`](docs/submission-brief.md).
@@ -68,9 +68,9 @@ The same template provisions an EventBridge-triggered nightly Lambda. It invokes
 
 CLI: `.venv/bin/python cli/tebaki.py [validate|run|demo|chase] --city sandbox`.
 
-### Camera-ready release checks
+### Release checks
 
-The live walkthrough and acceptance criteria are documented in [`docs/demo-runbook.md`](docs/demo-runbook.md). On Python 3.14, the known Strands sync-bridge/TestClient compatibility suite is isolated with the `python314_runtime` marker so the default release check remains finite:
+On Python 3.14, the known Strands sync-bridge/TestClient compatibility suite is isolated with the `python314_runtime` marker so the default release check remains finite:
 
 ```bash
 PYTHONPATH=engine .venv/bin/python -m pytest engine/tests -q -p no:cacheprovider
