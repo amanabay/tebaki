@@ -29,7 +29,7 @@ The engine is a real Strands product, not a chatbot wrapper:
 - **HITL interrupts** on `file_complaint` — approve / edit / drop from the web queue
 - **Chaser agent** with SLA clocks and a 3-rung escalation ladder
 - **City Packs** as data, engine as code (`cities/*.yaml`)
-- **Channels:** sandbox portal, Open311, SES, SMTP dry-run
+- **Channels:** sandbox portal, Open311, SES, and Gmail SMTP (human-approved production path)
 - **Web:** night-watch dashboard, bilingual masthead, decision cards, map, ledger, scoreboard, evidence, impact, and replay
 - **97 tests** + CI; **DynamoDB store** already implemented
 
@@ -43,7 +43,7 @@ The pitch is distinctive: *every civic app makes the citizen do the follow-up; T
 |---|---|
 | Photo + GPS + one line; vision triage | GPS + note only. `photo_key` exists on `Report` but intake never uploads. Category is user-picked. |
 | Bilingual Amharic/English drafts + KB-cited regs | Scripted drafter is English-only. Cite is a YAML string. Amharic is detected, never written. |
-| Addis flagship (real emails, OSM sub-cities, Proc. 513/2007, citable stat) | City-level boundary, source-linked regulation/statistics, and a verified public routing contact are present; sub-city polygons and sanitation-specific routing remain explicitly unverified. |
+| Addis flagship (real emails, OSM sub-cities, Proc. 513/2007, citable stat) | City-level boundary, source-linked regulation/statistics, Gmail SMTP for human-approved filing, and a verified Bole pilot polygon are present; routing outside Bole remains city-level fallback. |
 | AgentCore Browser channel (recorded) | Form map exists in sandbox YAML; **no `BrowserChannel` class**. Escalation letters are logged, not sent. |
 | Nightly cycle files **and** chases | `run_nightly_cycle` does not call `run_chase`. Two separate admin endpoints. |
 | Hooks: PII, geo-fence, Cedar; OTel | Only `filing_approval_hook`. |
@@ -63,7 +63,7 @@ Three things currently hide the track:
 
 1. **Clustering must remain visible.** The case dossier now exposes linked reports, corroboration counts, evidence, and the full agent timeline.
 2. **The group must hear back.** Public case views expose ticket, SLA, and escalation state after filing.
-3. **Addis claims must stay honest.** The pack labels city-level fallback coverage and links boundary/contact claims to sources; the Arada label is not a verified polygon.
+3. **Addis claims must stay honest.** The pack links boundary/contact claims to sources; Bole is a verified pilot polygon and every other area remains city-level fallback.
 
 ---
 

@@ -59,6 +59,15 @@ def test_ward_mapping_inside_and_outside() -> None:
     assert outside == "nowhere"
 
 
+def test_addis_bole_pilot_precedes_the_city_fallback() -> None:
+    features = load_boundary_features(CITIES_DIR / "geojson/addis.geojson")
+    assert map_ward(9.0, 38.80, features, fallback="outside") == "Bole"
+    assert map_ward(9.0321, 38.7421, features, fallback="outside") == (
+        "Addis Ababa city boundary (published administrative extent)"
+    )
+    assert is_within_boundary(9.0321, 38.7421, features)
+
+
 def test_multipolygon_boundaries_are_loaded_and_mapped(tmp_path: Path) -> None:
     path = tmp_path / "multipart.geojson"
     path.write_text(

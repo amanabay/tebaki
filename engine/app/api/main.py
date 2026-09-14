@@ -567,11 +567,18 @@ def create_app() -> FastAPI:
             city_name = pack.city.name
             coverage = pack.coverage
             coverage_state = "ready" if coverage.status == "verified" else "attention"
-            coverage_detail = (
-                f"Verified pilot: {coverage.pilot_area}."
-                if coverage.status == "verified"
-                else "City-level fallback is active; sub-city polygons are not yet vendored."
-            )
+            if coverage.status == "verified":
+                coverage_detail = f"Verified pilot: {coverage.pilot_area}."
+            elif coverage.pilot_area and "verified" in coverage.pilot_area.lower():
+                coverage_detail = (
+                    f"Verified sub-city pilot: {coverage.pilot_area}; "
+                    "city-level fallback covers the remaining areas."
+                )
+            else:
+                coverage_detail = (
+                    "City-level fallback is active; only independently verified pilot polygons "
+                    "are mapped to sub-city names."
+                )
         except Exception:  # noqa: BLE001 — diagnostics must remain available during bad pack deploys
             city_name = settings.city_pack
             coverage_state = "attention"

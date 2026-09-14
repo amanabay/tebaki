@@ -8,11 +8,14 @@ boundary:
   geojson: geojson/addis.geojson
   note: >-
     Published city-level administrative extent from the Ethiopian National
-    Agri Data Hub (WGS84; dataset metadata updated 2025-09-03). Sub-city
-    polygons remain a follow-up import; reports use the city fallback until
-    that layer is locally vendored. Do not infer sub-city precision from this
-    file until the official layer is vendored and validated.
+    Agri Data Hub (WGS84), with a verified Bole sub-city pilot polygon from
+    the same catalogue (WFS resource, metadata updated 2024-10-24). Reports
+    inside Bole resolve to that sub-city; the city polygon remains the
+    explicit fallback for every other Addis area until further polygons are
+    independently validated and vendored.
 admin:
+  - level: sub-city
+    source: geojson
   - level: city
     source: geojson
 channels:
@@ -40,7 +43,7 @@ regulations:
     doc: null
 coverage:
   status: city_fallback
-  pilot_area: Arada (pilot label; boundary not yet vendored)
+  pilot_area: Bole (verified pilot polygon; city fallback elsewhere)
   boundary_source: "Ethiopian National Agri Data Hub, Addis Ababa City Woreda Boundary — https://data.moa.gov.et/dataset/addis-ababa-city-woreda-boundary1"
   boundary_verified_at: "2026-09-12"
   contact_source: "Addis Ababa City Communication Bureau — https://www.addiscommunication.gov.et/"

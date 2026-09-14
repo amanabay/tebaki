@@ -15,12 +15,12 @@ Every `TODO-RESEARCH` marker in `cities/addis.yaml` maps to a task below.
 - [x] Replace `TODO-RESEARCH` in `cities/addis.yaml` → `pitch.number`, `pitch.source`.
 
 ### 2. Sub-city boundary GeoJSON (blocks: `boundary`, `admin` ward mapping)
-- [ ] Import the public Addis sub-city layer (10+1 sub-cities: e.g. Addis Ketema, Akaki Kality, Arada, Bole, Gullele, Kirkos, Kolfe Keranio, Lideta, Nifas Silk Lafto, Yeka, Lemi Kura). The pack currently uses the published city-level extent as a safe fallback.
+- [ ] Import the full public Addis sub-city layer (10+1 sub-cities: e.g. Addis Ketema, Akaki Kality, Arada, Bole, Gullele, Kirkos, Kolfe Keranio, Lideta, Nifas Silk Lafto, Yeka, Lemi Kura). Tebaki now includes a verified Bole pilot polygon and retains the city-level extent as a safe fallback elsewhere.
   - Option A: overpass-turbo query `admin_level=*` for the city, export GeoJSON.
   - Option B: geoBoundaries (ADM2 for Ethiopia), clip to Addis.
 - [ ] Save as `cities/geojson/addis.geojson` (FeatureCollection, one Feature per sub-city, `properties.name` = sub-city name, `properties.admin_level = "sub-city"`).
 - [ ] Update `boundary.note` to record provenance (source, extract date, license — ODbL attribution for OSM).
-  - The public layer is catalogued as **“Addis Ababa city administrative sub cities”** by the Water and Land Resource Center / Addis Ababa University; its live WFS endpoint was unavailable during the 2026-09-12 retrieval attempt. Tebaki therefore remains explicitly marked `city_fallback` until a downloadable copy is validated and vendored.
+  - The public layer is catalogued as **“Addis Ababa city administrative sub cities”** by the Water and Land Resource Center / Addis Ababa University; its live WFS endpoint was unavailable during the 2026-09-12 retrieval attempt. The Ethiopian National Agri Data Hub WFS did provide a Bole sub-city boundary, which is now vendored as a verified pilot. Tebaki remains `city_fallback` outside Bole until the full layer is validated.
 
 ### 3. Real filing contacts (blocks: `channels.email`, `channels.escalation`)
 - [ ] Find ≥1 real, reachable email (or verifiable contact route) for: a sub-city sanitation/beautification office; at least one rung of the escalation ladder.
@@ -44,7 +44,7 @@ Every `TODO-RESEARCH` marker in `cities/addis.yaml` maps to a task below.
 | # | Finding | Source | Verified (date) | Applied to pack |
 |---|---------|--------|-----------------|-----------------|
 | 1 | 2,647 tonnes/day municipal solid-waste generation estimate for 2022/23 | JICA, *Solid Waste Management Advisor for Addis Ababa City*, Project Completion Report, Fig. 2-11 | 2026-09-11 | `pitch.number`, `pitch.source` |
-| 2 | Published city-level administrative extent recorded; official/public sub-city layer identified but unavailable for reproducible download at verification time | [Ethiopian National Agri Data Hub](https://data.moa.gov.et/dataset/addis-ababa-city-woreda-boundary1); [WLRC/AAU layer metadata](https://waterhubdata.com/layers/geonode:Sub_city0/metadata_detail) | 2026-09-12 | `cities/geojson/addis.geojson`, `coverage.status=city_fallback` |
+| 2 | Published city-level extent plus a validated Bole sub-city pilot polygon; full sub-city layer remains incomplete | [Ethiopian National Agri Data Hub](https://data.moa.gov.et/dataset/addis-ababa-city-woreda-boundary1) WFS (`geonode:bole_subcity_boundary`); [WLRC/AAU layer metadata](https://waterhubdata.com/layers/geonode:Sub_city0/metadata_detail) | 2026-09-14 | `cities/geojson/addis.geojson`, `coverage.status=city_fallback` |
 | 3 | Official city routing contact verified; sanitation-specific handoff remains unverified | [Addis Ababa Communication Bureau](https://www.addiscommunication.gov.et/) (lists `admin@addiscommunication.gov.et` and +251118127731); [Addis Ababa Mayor's Office](https://www.addismayor.gov.et/aboutus) | 2026-09-12 | `cities/addis.yaml`, coverage metadata |
 | 4 | Public legal source linked for Proclamation 513/2007; PDF not vendored | [UNEP/FAOLEX](https://leap.unep.org/en/countries/et/national-legislation/solid-waste-management-proclamation-no-513-2007) | 2026-09-11 | `cities/addis.yaml` regulation citation |
 | 4 | _pending_ | | | |
