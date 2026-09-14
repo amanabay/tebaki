@@ -39,7 +39,7 @@ def runtime_environment() -> dict[str, str]:
         "TEBAKI_STORE": "dynamodb",
         "TEBAKI_DYNAMODB_TABLE": "tebaki",
     }
-    for key in ("TEBAKI_SMTP_HOST", "TEBAKI_SMTP_FROM", "TEBAKI_SMTP_SECRET_ARN", "TEBAKI_EMAIL_MODE"):
+    for key in ("TEBAKI_BEDROCK_MODEL_ID", "TEBAKI_SMTP_HOST", "TEBAKI_SMTP_FROM", "TEBAKI_SMTP_SECRET_ARN", "TEBAKI_EMAIL_MODE"):
         value = os.getenv(key)
         if value:
             env[key] = value
@@ -69,7 +69,7 @@ def get_account_id() -> str:
 def build_image() -> None:
     print("[1/4] building engine image (this can take a few minutes)…")
     sh([
-        "docker", "buildx", "build", "--platform", "linux/arm64", "--load",
+        "docker", "buildx", "build", "--no-cache", "--platform", "linux/arm64", "--load",
         "-f", "infra/Dockerfile", "-t", "tebaki-engine:local", ".",
     ])
     print("      image built")
