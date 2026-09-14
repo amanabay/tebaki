@@ -87,6 +87,14 @@ That command runs the compatible checks and reports the isolated skips. Run the 
 | `TEBAKI_CHICAGO_311_KEY` | Chicago Open311 API key |
 | `TEBAKI_CORS_ORIGINS` | Allowed CORS origins for the engine (JSON list) |
 
+### Public-repository safety
+
+Runtime credentials are deliberately external to the repository. Local
+`engine/.env` and `web/.env.*` files are ignored, SMTP credentials live in
+Secrets Manager, and the Docker build excludes environment files and key
+material. Before publishing, confirm that `git status --short` does not list a
+local environment file and never use `git add -f` on one.
+
 ### Accountability API
 
 The public read surfaces are intentionally safe to expose to a resident-facing web app:

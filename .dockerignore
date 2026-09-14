@@ -1,0 +1,21 @@
+# Never send local credentials or developer state to the Docker build context.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+.git
+.gitignore
+dist
+build
+*.pem
+*.key
+*.p12
+*.pfx
+*.tfstate
+*.tfstate.*
